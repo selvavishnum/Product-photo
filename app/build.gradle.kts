@@ -84,6 +84,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
+    // On-device background removal (u2netp via ONNX Runtime Mobile) -- no
+    // backend/server needed for this feature at all.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.27.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

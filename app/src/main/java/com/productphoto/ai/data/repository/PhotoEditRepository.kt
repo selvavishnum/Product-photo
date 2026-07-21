@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import com.productphoto.ai.data.network.NetworkModule
+import com.productphoto.ai.ml.OnDeviceBackgroundRemover
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -26,15 +27,21 @@ sealed interface PhotoEditResult {
 class PhotoEditRepository(private val appContext: Context) {
 
     private val api = NetworkModule.photoEditApi
+    private val onDeviceRemover = OnDeviceBackgroundRemover(appContext)
 
-    suspend fun removeBackground(sourceUri: Uri): PhotoEditResult = withContext(Dispatchers.IO) {
-        runCatching {
-            val inputFile = copyUriToCacheFile(sourceUri)
-            val response = api.removeBackground(buildImagePart(inputFile))
-            inputFile.delete()
-            decodeResponse(response)
-        }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
-    }
+    /**
+     * Runs entirely on-device (see ml/OnDeviceBackgroundRemover.kt) -- no
+     * backend needed for this feature. Dispatchers.Default, not IO: this is
+     * CPU-bound model inference, not blocking network/disk I/O (the one-time
+     * model download inside it is the exception, but it's small and rare).
+     */
+    suspend fun removeBackground(sourceUri: Uri): PhotoEditResult =
+        withContext(Dispatchers.Default) {
+            runCatching {
+                val bitmap = decodeUri(sourceUri)
+                PhotoEditResult.Success(onDeviceRemover.removeBackground(bitmap))
+            }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
+        }
 
     suspend fun upscale(sourceBitmap: Bitmap, scale: Int = 2): PhotoEditResult =
         withContext(Dispatchers.IO) {
@@ -45,6 +52,27 @@ class PhotoEditRepository(private val appContext: Context) {
                 decodeResponse(response)
             }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
         }
+
+    /** Downsamples very large camera photos before decoding to avoid OOM on full-res bitmaps. */
+    private fun decodeUri(uri: Uri): Bitmap {
+        val maxDimension = 2048
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        appContext.contentResolver.openInputStream(uri).use { stream ->
+            BitmapFactory.decodeStream(stream, null, bounds)
+        }
+
+        var sampleSize = 1
+        while (bounds.outWidth / sampleSize > maxDimension || bounds.outHeight / sampleSize > maxDimension) {
+            sampleSize *= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        return appContext.contentResolver.openInputStream(uri).use { stream ->
+            requireNotNull(BitmapFactory.decodeStream(stream, null, decodeOptions)) {
+                "Could not decode selected image"
+            }
+        }
+    }
 
     private fun decodeResponse(response: Response<ResponseBody>): PhotoEditResult {
         if (!response.isSuccessful) {
@@ -60,17 +88,6 @@ class PhotoEditRepository(private val appContext: Context) {
     private fun buildImagePart(file: File): MultipartBody.Part {
         val requestBody = file.asRequestBody("image/*".toMediaTypeOrNull())
         return MultipartBody.Part.createFormData("image", file.name, requestBody)
-    }
-
-    /** Retrofit needs a File/RequestBody, so stage the picked image in cache first. */
-    private fun copyUriToCacheFile(uri: Uri): File {
-        val outFile = File.createTempFile("upload", ".jpg", appContext.cacheDir)
-        appContext.contentResolver.openInputStream(uri).use { input ->
-            FileOutputStream(outFile).use { output ->
-                requireNotNull(input) { "Could not open selected image" }.copyTo(output)
-            }
-        }
-        return outFile
     }
 
     private fun bitmapToCacheFile(bitmap: Bitmap): File {

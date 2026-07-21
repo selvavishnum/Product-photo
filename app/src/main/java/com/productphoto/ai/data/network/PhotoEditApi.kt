@@ -9,12 +9,18 @@ import retrofit2.http.Part
 import retrofit2.http.Query
 
 /**
- * Talks to the app's own backend (see /backend): `rembg` for background
- * removal, classical Lanczos resample + unsharp mask for upscale. No
- * third-party AI API key is involved anywhere in this path — the server
- * holds no secrets to protect.
+ * Talks to the app's own backend (see /backend). No third-party AI API key
+ * is involved anywhere in this path — the server holds no secrets to protect.
  */
 interface PhotoEditApi {
+    /**
+     * The backend's rembg-based endpoint still exists and is still tested
+     * (see backend/test_main.py), but PhotoEditRepository.removeBackground()
+     * no longer calls it -- background removal moved on-device (see
+     * ml/OnDeviceBackgroundRemover.kt), so this method is currently unused by
+     * the app. Left in place rather than deleted since the backend endpoint
+     * itself is still valid and this wasn't a decision to remove it.
+     */
     @Multipart
     @POST("remove-background")
     suspend fun removeBackground(

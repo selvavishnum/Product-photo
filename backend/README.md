@@ -1,10 +1,15 @@
 # Product Photo AI — Backend
 
-FastAPI service with two endpoints:
-- Background removal via [`rembg`](https://github.com/danielgatis/rembg)
-  (open-source, ONNX-based, runs locally).
-- Upscale via classical Lanczos resampling + an unsharp mask (Pillow only —
-  no model, no download).
+FastAPI service. Two endpoints exist for historical reasons, but the
+Android app now only calls one of them:
+
+- `POST /upscale` — classical Lanczos resample + unsharp mask (Pillow only
+  — no model, no download). **The app calls this one.**
+- `POST /remove-background` via [`rembg`](https://github.com/danielgatis/rembg)
+  — still here, still tested, but the app no longer calls it: background
+  removal moved on-device (see root `README.md` and `app/.../ml/`), using the
+  same `u2netp` model this endpoint uses, just running on the phone instead
+  of a server. Left in place rather than deleted since it's still valid.
 
 There is no third-party AI API key anywhere in this service — the Android
 app calls this backend, and this backend calls no one.
