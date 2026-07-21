@@ -53,3 +53,58 @@ def test_rejects_empty_file():
         files={"image": ("empty.jpg", b"", "image/jpeg")},
     )
     assert response.status_code == 400
+
+
+def test_upscale_returns_larger_sharpened_image():
+    # No mocking here -- upscale_image() is classical resampling, not a
+    # downloaded model, so this exercises the real code path end to end.
+    source = io.BytesIO()
+    Image.new("RGB", (40, 30), (10, 120, 200)).save(source, format="PNG")
+    source.seek(0)
+
+    response = client.post(
+        "/upscale",
+        files={"image": ("product.png", source, "image/png")},
+        params={"scale": 3},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    result = Image.open(io.BytesIO(response.content))
+    assert result.size == (120, 90)
+
+
+def test_upscale_default_scale_is_2x():
+    source = io.BytesIO()
+    Image.new("RGB", (20, 20), (5, 5, 5)).save(source, format="PNG")
+    source.seek(0)
+
+    response = client.post(
+        "/upscale", files={"image": ("product.png", source, "image/png")}
+    )
+
+    assert response.status_code == 200
+    result = Image.open(io.BytesIO(response.content))
+    assert result.size == (40, 40)
+
+
+def test_upscale_rejects_invalid_scale():
+    source = io.BytesIO()
+    Image.new("RGB", (10, 10), (0, 0, 0)).save(source, format="PNG")
+    source.seek(0)
+
+    response = client.post(
+        "/upscale",
+        files={"image": ("product.png", source, "image/png")},
+        params={"scale": 10},
+    )
+
+    assert response.status_code == 400
+
+
+def test_upscale_rejects_non_image_upload():
+    response = client.post(
+        "/upscale",
+        files={"image": ("not-an-image.txt", b"hello world", "text/plain")},
+    )
+    assert response.status_code == 400
