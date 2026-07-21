@@ -12,6 +12,12 @@
 *.apk
 *.aab
 
+# Not committed: this sandbox can't reach services.gradle.org to generate a
+# real one, and gradle/actions/setup-gradle rejects hand-made copies by
+# checksum (rightly - that check exists to catch supply-chain tampering).
+# Run `gradle wrapper --gradle-version 8.7` locally once to create it.
+gradle/wrapper/gradle-wrapper.jar
+
 # Python backend
 backend/__pycache__/
 backend/**/__pycache__/
