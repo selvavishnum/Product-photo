@@ -34,7 +34,7 @@ object NetworkModule {
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
-    val backgroundRemovalApi: BackgroundRemovalApi by lazy {
-        retrofit.create(BackgroundRemovalApi::class.java)
+    val photoEditApi: PhotoEditApi by lazy {
+        retrofit.create(PhotoEditApi::class.java)
     }
 }

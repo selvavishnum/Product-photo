@@ -42,9 +42,14 @@ private fun ProductPhotoApp(viewModel: PhotoEditViewModel) {
             when (viewModel.stage) {
                 EditStage.PICKING -> HomeScreen(onPhotoPicked = viewModel::onPhotoPicked)
                 EditStage.PROCESSING -> ProcessingScreen(sourceUri = viewModel.sourceUri)
-                EditStage.RESULT -> viewModel.resultBitmap?.let { bitmap ->
+                EditStage.RESULT -> viewModel.displayBitmap?.let { bitmap ->
                     ResultScreen(
-                        bitmap = bitmap,
+                        displayBitmap = bitmap,
+                        selectedBackdrop = viewModel.selectedBackdrop,
+                        onSelectBackdrop = viewModel::selectBackdrop,
+                        isUpscaling = viewModel.isUpscaling,
+                        upscaleError = viewModel.upscaleError,
+                        onUpscale = viewModel::upscale,
                         isSaving = viewModel.isSaving,
                         saveConfirmed = viewModel.saveConfirmed,
                         onSave = viewModel::saveResult,

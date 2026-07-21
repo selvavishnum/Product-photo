@@ -13,46 +13,54 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.ResponseBody
+import retrofit2.Response
 import java.io.File
 import java.io.FileOutputStream
 
-sealed interface BackgroundRemovalResult {
-    data class Success(val bitmap: Bitmap) : BackgroundRemovalResult
-    data class Failure(val message: String) : BackgroundRemovalResult
+sealed interface PhotoEditResult {
+    data class Success(val bitmap: Bitmap) : PhotoEditResult
+    data class Failure(val message: String) : PhotoEditResult
 }
 
-class BackgroundRemovalRepository(private val appContext: Context) {
+class PhotoEditRepository(private val appContext: Context) {
 
-    private val api = NetworkModule.backgroundRemovalApi
+    private val api = NetworkModule.photoEditApi
 
-    suspend fun removeBackground(sourceUri: Uri): BackgroundRemovalResult =
+    suspend fun removeBackground(sourceUri: Uri): PhotoEditResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val inputFile = copyUriToCacheFile(sourceUri)
+            val response = api.removeBackground(buildImagePart(inputFile))
+            inputFile.delete()
+            decodeResponse(response)
+        }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
+    }
+
+    suspend fun upscale(sourceBitmap: Bitmap, scale: Int = 2): PhotoEditResult =
         withContext(Dispatchers.IO) {
-            try {
-                val inputFile = copyUriToCacheFile(sourceUri)
-                val requestBody = inputFile.asRequestBody("image/*".toMediaTypeOrNull())
-                val part = MultipartBody.Part.createFormData("image", inputFile.name, requestBody)
-
-                val response = api.removeBackground(part)
+            runCatching {
+                val inputFile = bitmapToCacheFile(sourceBitmap)
+                val response = api.upscale(buildImagePart(inputFile), scale)
                 inputFile.delete()
-
-                if (!response.isSuccessful) {
-                    return@withContext BackgroundRemovalResult.Failure(
-                        "Server returned ${response.code()}"
-                    )
-                }
-
-                val body = response.body()
-                    ?: return@withContext BackgroundRemovalResult.Failure("Empty response")
-
-                val bytes = body.bytes()
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    ?: return@withContext BackgroundRemovalResult.Failure("Could not decode image")
-
-                BackgroundRemovalResult.Success(bitmap)
-            } catch (e: Exception) {
-                BackgroundRemovalResult.Failure(e.message ?: "Unknown error")
-            }
+                decodeResponse(response)
+            }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
         }
+
+    private fun decodeResponse(response: Response<ResponseBody>): PhotoEditResult {
+        if (!response.isSuccessful) {
+            return PhotoEditResult.Failure("Server returned ${response.code()}")
+        }
+        val body = response.body() ?: return PhotoEditResult.Failure("Empty response")
+        val bytes = body.bytes()
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            ?: return PhotoEditResult.Failure("Could not decode image")
+        return PhotoEditResult.Success(bitmap)
+    }
+
+    private fun buildImagePart(file: File): MultipartBody.Part {
+        val requestBody = file.asRequestBody("image/*".toMediaTypeOrNull())
+        return MultipartBody.Part.createFormData("image", file.name, requestBody)
+    }
 
     /** Retrofit needs a File/RequestBody, so stage the picked image in cache first. */
     private fun copyUriToCacheFile(uri: Uri): File {
@@ -62,6 +70,12 @@ class BackgroundRemovalRepository(private val appContext: Context) {
                 requireNotNull(input) { "Could not open selected image" }.copyTo(output)
             }
         }
+        return outFile
+    }
+
+    private fun bitmapToCacheFile(bitmap: Bitmap): File {
+        val outFile = File.createTempFile("upscale-source", ".png", appContext.cacheDir)
+        FileOutputStream(outFile).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         return outFile
     }
 

@@ -9,4 +9,7 @@
     <string name="try_again">Try another photo</string>
     <string name="error_generic">Something went wrong. Check your connection and try again.</string>
     <string name="saved_confirmation">Saved to Photos</string>
+    <string name="backdrop_label">Backdrop</string>
+    <string name="upscale">Upscale</string>
+    <string name="upscaling">Upscaling…</string>
 </resources>
