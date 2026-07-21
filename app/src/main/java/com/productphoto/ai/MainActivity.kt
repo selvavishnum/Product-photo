@@ -54,6 +54,7 @@ private fun ProductPhotoApp(viewModel: PhotoEditViewModel) {
                         saveConfirmed = viewModel.saveConfirmed,
                         onSave = viewModel::saveResult,
                         onTryAnother = viewModel::reset,
+                        removalDebugInfo = viewModel.removalDebugInfo,
                     )
                 }
                 EditStage.ERROR -> ErrorScreen(

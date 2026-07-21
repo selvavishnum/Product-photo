@@ -9,6 +9,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.productphoto.ai.data.network.NetworkModule
 import com.productphoto.ai.ml.OnDeviceBackgroundRemover
+import com.productphoto.ai.ml.RemovalDebugInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -28,6 +29,10 @@ class PhotoEditRepository(private val appContext: Context) {
 
     private val api = NetworkModule.photoEditApi
     private val onDeviceRemover = OnDeviceBackgroundRemover(appContext)
+
+    /** TODO: remove alongside RemovalDebugInfo once the on-device removal bug is fixed. */
+    val lastRemovalDebugInfo: RemovalDebugInfo?
+        get() = onDeviceRemover.lastDebugInfo
 
     /**
      * Runs entirely on-device (see ml/OnDeviceBackgroundRemover.kt) -- no

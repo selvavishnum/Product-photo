@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.productphoto.ai.R
+import com.productphoto.ai.ml.RemovalDebugInfo
 import com.productphoto.ai.ui.backdrop.Backdrop
 
 @Composable
@@ -49,6 +50,8 @@ fun ResultScreen(
     saveConfirmed: Boolean,
     onSave: () -> Unit,
     onTryAnother: () -> Unit,
+    // TODO: remove once the on-device removal bug is fixed -- see RemovalDebugInfo.
+    removalDebugInfo: RemovalDebugInfo? = null,
 ) {
     Column(
         modifier = Modifier
@@ -107,6 +110,25 @@ fun ResultScreen(
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+
+        if (removalDebugInfo != null) {
+            // TODO: remove this whole block once the on-device removal bug is fixed.
+            Text(
+                text = "DEBUG (temporary) -- screenshot this and send it back:\n" +
+                    "model file: ${removalDebugInfo.modelFileBytes} bytes\n" +
+                    "input tensor min/max: %.3f / %.3f\n".format(
+                        removalDebugInfo.tensorMin, removalDebugInfo.tensorMax
+                    ) +
+                    "raw prediction min/max/mean: %.4f / %.4f / %.4f".format(
+                        removalDebugInfo.predictionMin,
+                        removalDebugInfo.predictionMax,
+                        removalDebugInfo.predictionMean,
+                    ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFFFACC15),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         if (upscaleError != null) {
             Text(
