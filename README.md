@@ -40,17 +40,31 @@ APK" run → download `product-photo-ai-debug` under **Artifacts**, unzip, and
 install the `.apk` on a device (enable "install unknown apps" for whichever
 app you use to open it).
 
-This is a debug build talking to `http://10.0.2.2:8000/` by default, which
-only resolves on an emulator. To use it on a real phone, rebuild with the
-backend's real address:
+**This default build only works in the Android emulator, not on a real
+phone.** It talks to `http://10.0.2.2:8000/`, a special address that only
+means "the computer running the emulator" *inside* the emulator — on a real
+phone it resolves to nothing, and background removal / upscale will fail
+with a connection error ("failed to connect to /10.0.2.2 ... after 30000ms").
 
-```bash
-./gradlew assembleDebug -PbackendUrl=http://<your-backend-host>:8000/
-```
+**To run it on a real phone**, on the same WiFi as your computer:
 
-— either your computer's LAN IP (phone and computer on the same Wi-Fi) or a
-publicly hosted backend URL. This is still an unsigned debug build, not a
-Play Store release — see the "Releasing" section below for what that needs.
+1. Start the backend on your computer: `uvicorn main:app --host 0.0.0.0 --port 8000`
+   (must bind `0.0.0.0`, not `127.0.0.1`/`localhost`, or other devices can't reach it).
+2. Find your computer's LAN IP (`ipconfig` on Windows, `ifconfig`/`ip addr` on
+   Mac/Linux — look for something like `192.168.1.X`). Your phone must show
+   an IP on the *same* `192.168.1.x` subnet for this to work.
+3. Build a debug APK pointed at that IP — either:
+   - **From GitHub, no local setup**: repo → **Actions** tab → "Build Debug
+     APK" → **Run workflow** → fill in `backend_url` as
+     `http://<your-computer's-LAN-IP>:8000/` → download the resulting artifact.
+   - **Locally** (needs Android Studio or a working `./gradlew`):
+     `./gradlew assembleDebug -PbackendUrl=http://<your-computer's-LAN-IP>:8000/`
+4. If it still can't connect: check your computer's firewall isn't blocking
+   inbound connections on port 8000.
+
+For a publicly hosted backend (works on any network, not just the same
+WiFi), use its HTTPS URL the same way — this is still an unsigned debug
+build either way, not a Play Store release; see "Releasing" below.
 
 ## Releasing to the Play Store (not done yet)
 
@@ -66,6 +80,6 @@ Still needed:
 
 ## Status
 
-Background removal is the only feature wired end-to-end so far. See
-`CLAUDE.md` for the gstack skill workflow this project uses, and
-`store-listing.md` for the target feature set.
+Background removal, Backdrop Select, and Photo Upscale are wired
+end-to-end. See `CLAUDE.md` for the gstack skill workflow this project
+uses, and `store-listing.md` for the target feature set.
