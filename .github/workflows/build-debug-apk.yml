@@ -6,6 +6,17 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      backend_url:
+        description: >
+          Backend base URL to bake into this build (e.g. http://<your-computer's-LAN-IP>:8000/
+          for a real phone on the same WiFi, or a public HTTPS URL). Leave blank to use the
+          default (http://10.0.2.2:8000/, which only works on the Android emulator).
+        required: false
+        default: ""
+
+permissions:
+  contents: write # needed to publish the GitHub Release below
 
 jobs:
   build:
@@ -26,10 +37,37 @@ jobs:
           gradle-version: "8.7"
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+        run: |
+          if [ -n "${{ inputs.backend_url }}" ]; then
+            gradle assembleDebug --no-daemon -PbackendUrl="${{ inputs.backend_url }}"
+          else
+            gradle assembleDebug --no-daemon
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: product-photo-ai-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+
+      # Only for the real main-branch build (not PRs, not one-off manual
+      # backend_url builds) -- publishes/updates a single rolling "latest"
+      # GitHub Release with the APK attached, so there's a permanent,
+      # bookmarkable download link instead of a workflow artifact that
+      # expires in 14 days and requires being logged in to fetch.
+      - name: Publish latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest debug build
+          prerelease: true
+          make_latest: true
+          body: >
+            Automatically built from the latest commit on `main`
+            (${{ github.sha }}). Debug build, talks to
+            `http://10.0.2.2:8000/` for Upscale (emulator only) unless
+            rebuilt with a custom `backend_url` via workflow_dispatch --
+            background removal is on-device and unaffected. Not a signed
+            Play Store release.
+          files: app/build/outputs/apk/debug/app-debug.apk

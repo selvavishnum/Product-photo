@@ -1,10 +1,15 @@
 # Product Photo AI — Backend
 
-FastAPI service with two endpoints:
-- Background removal via [`rembg`](https://github.com/danielgatis/rembg)
-  (open-source, ONNX-based, runs locally).
-- Upscale via classical Lanczos resampling + an unsharp mask (Pillow only —
-  no model, no download).
+FastAPI service. Two endpoints exist for historical reasons, but the
+Android app now only calls one of them:
+
+- `POST /upscale` — classical Lanczos resample + unsharp mask (Pillow only
+  — no model, no download). **The app calls this one.**
+- `POST /remove-background` via [`rembg`](https://github.com/danielgatis/rembg)
+  — still here, still tested, but the app no longer calls it: background
+  removal moved on-device (see root `README.md` and `app/.../ml/`), using the
+  same `u2netp` model this endpoint uses, just running on the phone instead
+  of a server. Left in place rather than deleted since it's still valid.
 
 There is no third-party AI API key anywhere in this service — the Android
 app calls this backend, and this backend calls no one.
@@ -28,7 +33,7 @@ your machine's `localhost:8000` from the Android emulator.
 ## Test
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest
 ```
 
@@ -57,3 +62,29 @@ Any host that can run a Python ASGI app works (Fly.io, Railway, a VPS, a
 Docker container). Put a real domain behind HTTPS in front of it and update
 `BACKEND_BASE_URL` in the Android build config before shipping — the app's
 release manifest does not allow cleartext HTTP.
+
+### Free option, no computer required: Hugging Face Spaces
+
+`Dockerfile` in this folder is set up for HF Spaces' Docker SDK (listens on
+port 7860, which Spaces expects). This can be done entirely from a phone
+browser — no local machine, no `git push` needed:
+
+1. Go to huggingface.co → sign up (free) → **New Space**.
+2. SDK: **Docker**. Hardware: the free **CPU basic** tier. Give it a name.
+3. In the new Space's **Files** tab, use **Add file → Create new file** (or
+   **Upload files**) to add three files, copying content straight from this
+   folder: `Dockerfile`, `main.py`, `requirements.txt`.
+4. The Space builds automatically (watch the **Logs** tab). Once it says
+   "Running", the backend is live at
+   `https://<your-username>-<space-name>.hf.space`.
+5. Point the app at it — this URL is already HTTPS, so it works with the
+   release build too, not just debug:
+   ```bash
+   ./gradlew assembleDebug -PbackendUrl=https://<your-username>-<space-name>.hf.space/
+   ```
+   or via the CI workflow's `backend_url` input (see root `README.md`).
+
+Free-tier caveats: the Space may sleep after a period of inactivity and take
+a bit to wake up on the next request (cold start), and CPU-only inference is
+slower than a dedicated server. Fine for testing and low-traffic use; revisit
+a paid tier if it becomes a bottleneck.

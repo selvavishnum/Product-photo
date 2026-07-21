@@ -14,7 +14,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Base URL of the backend that performs background removal (see /backend).
+        // Base URL of the backend (see /backend). Only Upscale uses it now --
+        // background removal moved on-device (see ml/OnDeviceBackgroundRemover.kt).
         // Override per-build via -PbackendUrl=https://... or a local.properties entry.
         buildConfigField(
             "String",
@@ -83,6 +84,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // On-device background removal (u2netp via ONNX Runtime Mobile) -- no
+    // backend/server needed for this feature at all.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.27.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
