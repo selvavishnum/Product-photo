@@ -46,25 +46,30 @@ means "the computer running the emulator" *inside* the emulator — on a real
 phone it resolves to nothing, and background removal / upscale will fail
 with a connection error ("failed to connect to /10.0.2.2 ... after 30000ms").
 
-**To run it on a real phone**, on the same WiFi as your computer:
+**No computer at all?** See `backend/README.md`'s "Hugging Face Spaces"
+section — deploys the backend for free, entirely from a phone browser (no
+`git push`, no terminal). Then skip straight to step 3 below with that
+Space's `https://...hf.space` URL as the `backend_url`.
+
+**If you do have a computer**, on the same WiFi as your phone:
 
 1. Start the backend on your computer: `uvicorn main:app --host 0.0.0.0 --port 8000`
    (must bind `0.0.0.0`, not `127.0.0.1`/`localhost`, or other devices can't reach it).
 2. Find your computer's LAN IP (`ipconfig` on Windows, `ifconfig`/`ip addr` on
    Mac/Linux — look for something like `192.168.1.X`). Your phone must show
    an IP on the *same* `192.168.1.x` subnet for this to work.
-3. Build a debug APK pointed at that IP — either:
-   - **From GitHub, no local setup**: repo → **Actions** tab → "Build Debug
-     APK" → **Run workflow** → fill in `backend_url` as
-     `http://<your-computer's-LAN-IP>:8000/` → download the resulting artifact.
-   - **Locally** (needs Android Studio or a working `./gradlew`):
-     `./gradlew assembleDebug -PbackendUrl=http://<your-computer's-LAN-IP>:8000/`
-4. If it still can't connect: check your computer's firewall isn't blocking
-   inbound connections on port 8000.
 
-For a publicly hosted backend (works on any network, not just the same
-WiFi), use its HTTPS URL the same way — this is still an unsigned debug
-build either way, not a Play Store release; see "Releasing" below.
+3. Build a debug APK pointed at that backend — either:
+   - **From GitHub, no local setup**: repo → **Actions** tab → "Build Debug
+     APK" → **Run workflow** → fill in `backend_url` (LAN IP or the HF
+     Spaces URL from above) → download the resulting artifact.
+   - **Locally** (needs Android Studio or a working `./gradlew`):
+     `./gradlew assembleDebug -PbackendUrl=<url>`
+4. If a LAN IP still can't connect: check your computer's firewall isn't
+   blocking inbound connections on port 8000.
+
+This is still an unsigned debug build either way, not a Play Store release —
+see "Releasing" below.
 
 ## Releasing to the Play Store (not done yet)
 
