@@ -119,11 +119,13 @@ fun ResultScreen(
                     "input tensor min/max: %.3f / %.3f\n".format(
                         removalDebugInfo.tensorMin, removalDebugInfo.tensorMax
                     ) +
-                    "raw prediction min/max/mean: %.4f / %.4f / %.4f".format(
+                    "raw prediction min/max/mean: %.4f / %.4f / %.4f\n".format(
                         removalDebugInfo.predictionMin,
                         removalDebugInfo.predictionMax,
                         removalDebugInfo.predictionMean,
-                    ),
+                    ) +
+                    "final mask (0-255) min/max/mean: ${removalDebugInfo.maskMin} / " +
+                    "${removalDebugInfo.maskMax} / %.1f".format(removalDebugInfo.maskMean),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color(0xFFFACC15),
             )
