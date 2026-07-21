@@ -31,17 +31,21 @@ class PhotoEditRepository(private val appContext: Context) {
 
     /**
      * Runs entirely on-device (see ml/OnDeviceBackgroundRemover.kt) -- no
-     * backend needed for this feature. Dispatchers.Default, not IO: this is
-     * CPU-bound model inference, not blocking network/disk I/O (the one-time
-     * model download inside it is the exception, but it's small and rare).
+     * backend needed for this feature. Decode and the one-time model
+     * download are I/O, dispatched on Dispatchers.IO; only the actual model
+     * inference is CPU-bound and dispatched on Dispatchers.Default. Calling
+     * ensureModelReady() here (not just inside removeBackground()) means
+     * that by the time removeBackground() runs on Default, the model is
+     * already verified and its own internal ensureModelReady() check is a
+     * cheap in-memory no-op -- so a first-run download never blocks
+     * Default's small, fixed-size thread pool.
      */
-    suspend fun removeBackground(sourceUri: Uri): PhotoEditResult =
-        withContext(Dispatchers.Default) {
-            runCatching {
-                val bitmap = decodeUri(sourceUri)
-                PhotoEditResult.Success(onDeviceRemover.removeBackground(bitmap))
-            }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
-        }
+    suspend fun removeBackground(sourceUri: Uri): PhotoEditResult = runCatching {
+        val bitmap = withContext(Dispatchers.IO) { decodeUri(sourceUri) }
+        withContext(Dispatchers.IO) { onDeviceRemover.ensureModelReady() }
+        val result = withContext(Dispatchers.Default) { onDeviceRemover.removeBackground(bitmap) }
+        PhotoEditResult.Success(result)
+    }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
 
     suspend fun upscale(sourceBitmap: Bitmap, scale: Int = 2): PhotoEditResult =
         withContext(Dispatchers.IO) {
@@ -53,11 +57,18 @@ class PhotoEditRepository(private val appContext: Context) {
             }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
         }
 
-    /** Downsamples very large camera photos before decoding to avoid OOM on full-res bitmaps. */
+    /**
+     * Downsamples unusually large images before decoding to bound peak
+     * memory, while preserving full resolution for ordinary phone-camera
+     * photos (a 12MP 4032x3024 shot stays well under this cap). 4096 is
+     * chosen to only kick in for genuinely oversized sources (e.g. document
+     * scans), not to silently cap ordinary "marketplace-ready" photo quality.
+     */
     private fun decodeUri(uri: Uri): Bitmap {
-        val maxDimension = 2048
+        val maxDimension = 4096
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         appContext.contentResolver.openInputStream(uri).use { stream ->
+            requireNotNull(stream) { "Could not open selected image" }
             BitmapFactory.decodeStream(stream, null, bounds)
         }
 
@@ -68,6 +79,7 @@ class PhotoEditRepository(private val appContext: Context) {
 
         val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
         return appContext.contentResolver.openInputStream(uri).use { stream ->
+            requireNotNull(stream) { "Could not open selected image" }
             requireNotNull(BitmapFactory.decodeStream(stream, null, decodeOptions)) {
                 "Could not decode selected image"
             }

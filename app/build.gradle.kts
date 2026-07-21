@@ -14,7 +14,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Base URL of the backend that performs background removal (see /backend).
+        // Base URL of the backend (see /backend). Only Upscale uses it now --
+        // background removal moved on-device (see ml/OnDeviceBackgroundRemover.kt).
         // Override per-build via -PbackendUrl=https://... or a local.properties entry.
         buildConfigField(
             "String",
