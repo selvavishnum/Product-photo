@@ -5,40 +5,26 @@ marketplace-ready images.
 
 ## Structure
 
-- `app/` — Android app (Kotlin, Jetpack Compose, Retrofit, ONNX Runtime Mobile).
-- `backend/` — FastAPI service for Photo Upscale (classical, no model
-  download). Background removal no longer needs this backend at all — see
-  below — but the endpoint still exists and is still tested.
+- `app/` — Android app (Kotlin, Jetpack Compose, Retrofit, Coil).
+- `backend/` — FastAPI service for Background Removal (`rembg`) and Photo
+  Upscale (classical Lanczos + unsharp mask, no model download). Both
+  features call this backend over HTTP.
 - `store-listing.md` — Play Store listing copy.
 
-## Background removal: fully on-device, no backend needed
+## Background Removal and Photo Upscale: both need the backend
 
-Runs entirely on the phone via ONNX Runtime Mobile
-(`app/src/main/java/com/productphoto/ai/ml/`), using the same `u2netp` model
-`rembg` uses server-side — just moved onto the device instead of a server.
-The app downloads the ~4.7MB model file once (needs internet for that one
-download; nothing after) and verifies it against rembg's own published
-checksum before using it. No backend, no computer, no LAN IP needed for this
-feature — it was the fix for "no computer to host on."
-
-**Not yet verified against a real model/device** — the preprocessing and
-mask math (`ml/TensorPreprocessing.kt`) is unit-tested against exact
-reference values computed from rembg's own source, and the ONNX Runtime API
-calls were checked against the real `onnxruntime` jar's class files, but
-this sandbox has no Android device or SDK to run the full pipeline
-end-to-end. Test on a real phone before relying on it.
-
-## Photo Upscale: still needs the backend
-
-Upscale (Lanczos resample + unsharp mask) hasn't moved on-device — see
-`backend/README.md` for running/deploying it.
+Both features are network calls to the FastAPI backend — see
+`backend/README.md` for running/deploying it. Backdrop Select (swapping in a
+solid/gradient backdrop behind the cut-out subject) is the one feature that
+runs entirely on-device (`app/src/main/java/com/productphoto/ai/util/BackdropCompositor.kt`),
+since it's just Canvas compositing once the background has already been
+removed.
 
 ## Running it
 
-1. Backend (for Upscale): see `backend/README.md`.
+1. Backend (for Background Removal and Upscale): see `backend/README.md`.
 2. App: open the project root in Android Studio, let Gradle sync, run the
-   `app` module on an emulator or device. Background removal works
-   immediately (once the model download finishes); Upscale needs the backend
+   `app` module on an emulator or device. Both features need the backend
    reachable — defaults to `http://10.0.2.2:8000/` (your machine's
    `localhost:8000` from the emulator).
 
@@ -71,13 +57,12 @@ you want → download `product-photo-ai-debug` under **Artifacts**, unzip, and
 install the `.apk` on a device (enable "install unknown apps" for whichever
 app you use to open it).
 
-**This default build's Upscale feature only works in the Android emulator,
-not on a real phone** (background removal is unaffected — it's on-device and
-doesn't talk to any backend). The default build talks to
-`http://10.0.2.2:8000/`, a special address that only means "the computer
-running the emulator" *inside* the emulator — on a real phone it resolves to
-nothing, and Upscale will fail with a connection error ("failed to connect
-to /10.0.2.2 ... after 30000ms").
+**This default build only works in the Android emulator, not on a real
+phone.** The default build talks to `http://10.0.2.2:8000/`, a special
+address that only means "the computer running the emulator" *inside* the
+emulator — on a real phone it resolves to nothing, and both Background
+Removal and Upscale will fail with a connection error ("failed to connect to
+/10.0.2.2 ... after 30000ms").
 
 **No computer at all?** See `backend/README.md`'s "Hugging Face Spaces"
 section — deploys the backend for free, entirely from a phone browser (no
@@ -110,7 +95,7 @@ Merging code and building a debug APK are not the same as a store release.
 Still needed:
 - A signing keystore + a release build signed with it.
 - The backend hosted somewhere public over HTTPS (not `10.0.2.2` or a LAN
-  IP) for Upscale — background removal doesn't need this.
+  IP) — both Background Removal and Upscale need it reachable in production.
 - A Google Play Console account, the store listing (`store-listing.md` as a
   starting point), a real privacy policy URL, content rating, and the data
   safety form.
@@ -119,7 +104,6 @@ Still needed:
 
 ## Status
 
-Background removal (on-device, not yet verified on a real device), Backdrop
-Select, and Photo Upscale are wired end-to-end. See `CLAUDE.md` for the
-gstack skill workflow this project uses, and `store-listing.md` for the
-target feature set.
+Background Removal, Backdrop Select, and Photo Upscale are wired end-to-end.
+See `CLAUDE.md` for the gstack skill workflow this project uses, and
+`store-listing.md` for the target feature set.

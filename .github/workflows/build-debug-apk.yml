@@ -66,8 +66,7 @@ jobs:
           body: >
             Automatically built from the latest commit on `main`
             (${{ github.sha }}). Debug build, talks to
-            `http://10.0.2.2:8000/` for Upscale (emulator only) unless
-            rebuilt with a custom `backend_url` via workflow_dispatch --
-            background removal is on-device and unaffected. Not a signed
-            Play Store release.
+            `http://10.0.2.2:8000/` for Background Removal and Upscale
+            (emulator only) unless rebuilt with a custom `backend_url` via
+            workflow_dispatch. Not a signed Play Store release.
           files: app/build/outputs/apk/debug/app-debug.apk
