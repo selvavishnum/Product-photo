@@ -17,6 +17,22 @@ import java.nio.FloatBuffer
 private const val MODEL_INPUT_SIZE = 320
 
 /**
+ * Temporary diagnostic snapshot from the last removeBackground() call.
+ * TODO: remove once the "nothing gets removed on real devices" bug (reported
+ * against the first real-hardware test) is root-caused and fixed -- this
+ * exists only so a user without adb/logcat access can screenshot real
+ * numbers back instead of guessing blind from a photo of the result.
+ */
+data class RemovalDebugInfo(
+    val modelFileBytes: Long,
+    val tensorMin: Float,
+    val tensorMax: Float,
+    val predictionMin: Float,
+    val predictionMax: Float,
+    val predictionMean: Float,
+)
+
+/**
  * Runs u2netp entirely on-device via ONNX Runtime Mobile -- no backend
  * needed for background removal at all. The preprocessing/postprocessing
  * math (toChwTensor/predictionToMaskBytes) is an exact, unit-tested port of
@@ -45,6 +61,9 @@ class OnDeviceBackgroundRemover(context: Context) {
 
     @Volatile
     private var modelVerified = false
+
+    var lastDebugInfo: RemovalDebugInfo? = null
+        private set
 
     /**
      * Blocking network download on first-ever call; cheap (in-memory flag
@@ -108,6 +127,15 @@ class OnDeviceBackgroundRemover(context: Context) {
                 FloatArray(planeSize) { outputBuffer.get(it) }
             }
         }
+
+        lastDebugInfo = RemovalDebugInfo(
+            modelFileBytes = downloader.modelFile().length(),
+            tensorMin = tensorData.min(),
+            tensorMax = tensorData.max(),
+            predictionMin = prediction.min(),
+            predictionMax = prediction.max(),
+            predictionMean = prediction.average().toFloat(),
+        )
 
         val maskBytes = predictionToMaskBytes(prediction)
         return compositeWithMask(original, maskBytes, MODEL_INPUT_SIZE)

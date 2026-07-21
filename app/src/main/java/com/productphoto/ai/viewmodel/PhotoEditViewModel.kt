@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.productphoto.ai.data.repository.PhotoEditRepository
 import com.productphoto.ai.data.repository.PhotoEditResult
+import com.productphoto.ai.ml.RemovalDebugInfo
 import com.productphoto.ai.ui.backdrop.Backdrop
 import com.productphoto.ai.util.compositeWithBackdrop
 import kotlinx.coroutines.launch
@@ -52,6 +53,10 @@ class PhotoEditViewModel(application: Application) : AndroidViewModel(applicatio
     var saveConfirmed by mutableStateOf(false)
         private set
 
+    /** TODO: remove alongside RemovalDebugInfo once the on-device removal bug is fixed. */
+    var removalDebugInfo by mutableStateOf<RemovalDebugInfo?>(null)
+        private set
+
     fun onPhotoPicked(uri: Uri) {
         sourceUri = uri
         stage = EditStage.PROCESSING
@@ -61,6 +66,7 @@ class PhotoEditViewModel(application: Application) : AndroidViewModel(applicatio
                     resultBitmap = result.bitmap
                     selectedBackdrop = Backdrop.TRANSPARENT
                     displayBitmap = result.bitmap
+                    removalDebugInfo = repository.lastRemovalDebugInfo
                     stage = EditStage.RESULT
                 }
                 is PhotoEditResult.Failure -> {
@@ -111,6 +117,7 @@ class PhotoEditViewModel(application: Application) : AndroidViewModel(applicatio
         selectedBackdrop = Backdrop.TRANSPARENT
         errorMessage = null
         saveConfirmed = false
+        removalDebugInfo = null
         stage = EditStage.PICKING
     }
 }
