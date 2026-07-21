@@ -22,6 +22,13 @@ private const val MODEL_INPUT_SIZE = 320
  * against the first real-hardware test) is root-caused and fixed -- this
  * exists only so a user without adb/logcat access can screenshot real
  * numbers back instead of guessing blind from a photo of the result.
+ *
+ * Note on predictionMin/Max: a truly constant raw prediction (min == max)
+ * would NOT explain "nothing gets removed" -- predictionToMaskBytes' zero-
+ * range fallback makes that case fully TRANSPARENT (mask = 0 everywhere),
+ * the opposite of the reported symptom. maskMin/Max/Mean below (the actual
+ * post-normalization alpha values used for compositing) are the numbers
+ * that actually explain what's visibly happening.
  */
 data class RemovalDebugInfo(
     val modelFileBytes: Long,
@@ -30,6 +37,9 @@ data class RemovalDebugInfo(
     val predictionMin: Float,
     val predictionMax: Float,
     val predictionMean: Float,
+    val maskMin: Int,
+    val maskMax: Int,
+    val maskMean: Float,
 )
 
 /**
@@ -128,6 +138,8 @@ class OnDeviceBackgroundRemover(context: Context) {
             }
         }
 
+        val maskBytes = predictionToMaskBytes(prediction)
+
         lastDebugInfo = RemovalDebugInfo(
             modelFileBytes = downloader.modelFile().length(),
             tensorMin = tensorData.min(),
@@ -135,9 +147,11 @@ class OnDeviceBackgroundRemover(context: Context) {
             predictionMin = prediction.min(),
             predictionMax = prediction.max(),
             predictionMean = prediction.average().toFloat(),
+            maskMin = maskBytes.min(),
+            maskMax = maskBytes.max(),
+            maskMean = maskBytes.average().toFloat(),
         )
 
-        val maskBytes = predictionToMaskBytes(prediction)
         return compositeWithMask(original, maskBytes, MODEL_INPUT_SIZE)
     }
 
