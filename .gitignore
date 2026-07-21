@@ -25,3 +25,6 @@ backend/.pytest_cache/
 backend/venv/
 backend/.venv/
 *.pyc
+
+# Claude Code harness state (e.g. isolated git worktrees for subagents)
+.claude/

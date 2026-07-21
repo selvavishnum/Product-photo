@@ -57,10 +57,17 @@ file at all — see below.
 
 ## Getting an installable APK without Android Studio
 
-Every push to `main` (and every PR) triggers `.github/workflows/build-debug-apk.yml`,
-which builds a debug APK on GitHub's runners and attaches it as a workflow
-artifact. To get it: GitHub repo → **Actions** tab → the latest "Build Debug
-APK" run → download `product-photo-ai-debug` under **Artifacts**, unzip, and
+**Easiest: the Releases page.** Every push to `main` publishes/updates a
+`latest` GitHub Release with the current debug APK attached — repo →
+**Releases** (sidebar) → download `app-debug.apk` from the "Latest debug
+build" release. Same permanent link every time, no digging through Actions
+runs, no login required, no 14-day expiry.
+
+**Or, for a one-off custom build** (e.g. a specific `backend_url`, or a PR's
+build): every push and PR also triggers
+`.github/workflows/build-debug-apk.yml`, which attaches the APK as a
+workflow artifact (14-day expiry). GitHub repo → **Actions** tab → the run
+you want → download `product-photo-ai-debug` under **Artifacts**, unzip, and
 install the `.apk` on a device (enable "install unknown apps" for whichever
 app you use to open it).
 
