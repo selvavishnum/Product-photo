@@ -18,6 +18,18 @@ marketplace-ready images. First working feature: background removal.
    `http://10.0.2.2:8000/` (your machine's `localhost:8000` from the
    emulator) — start the backend first.
 
+If `./gradlew` fails locally with a `NoClassDefFoundError`, regenerate the
+wrapper once (this repo's `gradle-wrapper.jar` was assembled in a
+network-restricted sandbox and may not match this exact Gradle version):
+
+```bash
+gradle wrapper --gradle-version 8.7
+```
+
+(needs any local Gradle install — Android Studio bundles one). CI doesn't
+depend on this jar at all (see below), so this only matters for local
+`./gradlew` use outside Android Studio.
+
 ## Getting an installable APK without Android Studio
 
 Every push to `main` (and every PR) triggers `.github/workflows/build-debug-apk.yml`,
