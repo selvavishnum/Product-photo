@@ -1,0 +1,61 @@
+name: Build Flutter Debug APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/build-flutter-apk.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/build-flutter-apk.yml"
+  workflow_dispatch:
+    inputs:
+      backend_url:
+        description: >
+          Backend base URL to bake into this build (e.g. your Render URL).
+          Leave blank to use the default hardcoded in lib/services/api_service.dart.
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # mobile/ only commits Dart source (lib/, pubspec.yaml) -- the
+      # android/ platform folder is generated here rather than committed,
+      # since this repo was scaffolded without a local Flutter SDK to
+      # produce it correctly the first time. `flutter create` on a
+      # directory that already has a pubspec.yaml only fills in the missing
+      # platform folder; it does not touch existing lib/ or pubspec.yaml.
+      - name: Generate Android platform folder if missing
+        run: |
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org com.productphoto.ai --project-name product_photo_studio .
+          fi
+
+      - name: Override backend URL if provided
+        if: inputs.backend_url != ''
+        run: |
+          sed -i "s#baseUrl = '[^']*'#baseUrl = '${{ inputs.backend_url }}'#" lib/services/api_service.dart
+
+      - run: flutter pub get
+
+      - run: flutter build apk --debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: product-photo-studio-debug
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14

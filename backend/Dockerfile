@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "from rembg import new_session; new_session('u2net')"
 
 COPY main.py .
+COPY services/ services/
 
 ENV PORT=7860
 EXPOSE 7860

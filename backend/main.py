@@ -2,16 +2,25 @@
 
 Runs `rembg` (open-source, ONNX-based) for background removal and a
 classical Lanczos-resample + unsharp-mask upscaler -- no third-party AI API
-key anywhere in this service. The Android app never sees or needs a key; it
-just POSTs an image here and gets a processed image back.
+key anywhere in this path. The existing native Android app never sees or
+needs a key; it just POSTs an image here and gets a processed image back.
+
+The `/ai/*` endpoints below are a separate, additive path for the Flutter
+studio app: they call paid fal.ai models (BiRefNet for removal, FLUX.1 dev
+inpainting for AI studio backgrounds) and require a funded fal.ai account
+(FAL_KEY env var). They cost money per call, unlike everything above.
 """
 
 import io
+from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from PIL import Image, ImageFilter
 from rembg import remove
+
+from services import background_generation, background_removal, mask_utils
+from services.fal_client import FalAPIError
 
 app = FastAPI(title="Product Photo AI Backend")
 
@@ -86,3 +95,55 @@ async def upscale(image: UploadFile = File(...), scale: int = 2) -> Response:
         raise HTTPException(status_code=500, detail=f"Upscale failed: {exc}") from exc
 
     return Response(content=output_bytes, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# Paid fal.ai-backed endpoints for the Flutter studio app. See module
+# docstring: these require FAL_KEY and cost money per call.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/ai/themes")
+def list_studio_themes() -> dict:
+    return {"themes": list(background_generation.STUDIO_THEMES.keys())}
+
+
+@app.post("/ai/remove-background")
+async def ai_remove_background(image: UploadFile = File(...)) -> dict:
+    input_bytes = await _read_validated_image(image)
+
+    try:
+        cutout_url = background_removal.remove_background(input_bytes, image.content_type)
+    except FalAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {"cutout_url": cutout_url}
+
+
+@app.post("/ai/generate-background")
+async def ai_generate_background(
+    image: UploadFile = File(...),
+    theme_key: Optional[str] = Form(default=None),
+    prompt: Optional[str] = Form(default=None),
+) -> dict:
+    """`image` should be a cutout PNG with transparency (e.g. from
+    /ai/remove-background) -- the regeneration mask is derived from its
+    alpha channel, so no separate mask upload is required.
+    """
+    cutout_bytes = await _read_validated_image(image)
+
+    try:
+        final_prompt = background_generation.resolve_prompt(theme_key, prompt)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    mask_bytes = mask_utils.alpha_to_mask(cutout_bytes)
+
+    try:
+        generated_url = background_generation.generate_background(
+            cutout_bytes, mask_bytes, final_prompt, image.content_type
+        )
+    except FalAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {"generated_url": generated_url}

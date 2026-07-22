@@ -1,13 +1,14 @@
 # Product Photo AI — Backend
 
-FastAPI service with two endpoints:
-- Background removal via [`rembg`](https://github.com/danielgatis/rembg)
-  (open-source, ONNX-based, runs locally).
-- Upscale via classical Lanczos resampling + an unsharp mask (Pillow only —
-  no model, no download).
-
-There is no third-party AI API key anywhere in this service — the Android
-app calls this backend, and this backend calls no one.
+FastAPI service with two groups of endpoints:
+- **Free, no API key**: `/remove-background` (`rembg`, open-source,
+  ONNX-based, runs locally) and `/upscale` (classical Lanczos resampling +
+  unsharp mask, Pillow only). Used by the existing native Android app
+  (`../app`).
+- **Paid, needs a fal.ai account**: `/ai/remove-background` and
+  `/ai/generate-background`, used by the new Flutter studio app
+  (`../mobile`). See "fal.ai AI features" below before using these — every
+  call costs money.
 
 **Already hosted** for this app at `https://product-photo-backend.onrender.com/`
 (Render.com free tier) — that's the default `BACKEND_BASE_URL` baked into the
@@ -52,6 +53,40 @@ no model to stub, it's plain Pillow — and check actual output dimensions.
   `scale` (1-4, default 2); returns a resized + sharpened PNG. Classical
   upscaling, not a generative super-resolution model — see `main.py`'s
   `upscale_image()` docstring for why.
+- `GET /ai/themes` — lists the studio backdrop preset keys (`marble_table`,
+  `luxury_podium`, `nature_sunlight`).
+- `POST /ai/remove-background` — multipart form field `image`; calls
+  BiRefNet on fal.ai, returns `{"cutout_url": "https://..."}` (a fal.ai-hosted
+  URL, not raw bytes). **Costs money per call** — see below.
+- `POST /ai/generate-background` — multipart form field `image` (a cutout
+  PNG with transparency, e.g. from `/ai/remove-background`), plus either
+  form field `theme_key` (one of the presets above) or `prompt` (a custom
+  description — overrides `theme_key` if both are given). Calls FLUX.1 dev
+  inpainting on fal.ai, returns `{"generated_url": "https://..."}`. **Costs
+  money per call.**
+
+## fal.ai AI features (`/ai/*` endpoints)
+
+These power the new Flutter studio app (`../mobile`), not the existing
+native Android app. They need:
+
+1. A fal.ai account with billing set up: fal.ai → sign up → add a payment
+   method (no meaningful free tier for these models).
+2. An API key from your fal.ai dashboard, set as the `FAL_KEY` environment
+   variable on whatever host runs this backend (Render: **Environment** tab
+   → add `FAL_KEY`).
+3. **Verify the model IDs** in `services/background_removal.py`
+   (`BIREFNET_MODEL_ID`) and `services/background_generation.py`
+   (`FLUX_INPAINT_MODEL_ID`) against fal.ai's own model catalog
+   (fal.ai/models) before relying on them. This repo's sandbox has no
+   network access to fal.ai, so these are unverified placeholders, not
+   confirmed-correct values — the same mistake cost real CI cycles earlier
+   in this project with a wrong Maven dependency, so don't assume these are
+   right without checking.
+
+Uses BiRefNet (MIT licensed) rather than Bria RMBG 2.0 (CC BY-NC 4.0,
+**non-commercial only**) for removal — this app has a paid credit system
+planned, so a non-commercial-only model isn't legally usable here.
 
 ## Deploying
 
