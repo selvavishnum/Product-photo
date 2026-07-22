@@ -1,15 +1,25 @@
 # Product Photo AI
 
-Native Android app (Kotlin + Jetpack Compose) for turning product photos into
-marketplace-ready images.
+Two apps in this repo, sharing one backend:
+- `app/` — the original native Android app (Kotlin/Compose): free
+  background removal (`rembg`), Backdrop Select, classical Upscale. Fully
+  working today.
+- `mobile/` — a new Flutter "Product Photo Studio" app: paid AI-generated
+  studio backdrops via fal.ai (BiRefNet removal + FLUX.1 dev inpainting).
+  Early — one screen, no auth/credits/payments yet. See `mobile/README.md`
+  for exactly what's built vs. not.
+
+Neither replaces the other automatically — `app/` keeps working as-is.
 
 ## Structure
 
-- `app/` — Android app (Kotlin, Jetpack Compose, Retrofit, Coil).
-- `backend/` — FastAPI service for Background Removal (`rembg`) and Photo
-  Upscale (classical Lanczos + unsharp mask, no model download). Both
-  features call this backend over HTTP.
-- `store-listing.md` — Play Store listing copy.
+- `app/` — native Android app (Kotlin, Jetpack Compose, Retrofit, Coil).
+- `mobile/` — Flutter studio app (Dart, `http`, `image_picker`). See
+  `mobile/README.md`.
+- `backend/` — FastAPI service, two endpoint groups: the free `rembg`/
+  classical-upscale ones `app/` uses, and the paid fal.ai-backed `/ai/*`
+  ones `mobile/` uses. See `backend/README.md`.
+- `store-listing.md` — Play Store listing copy (for `app/`).
 
 ## Background Removal and Photo Upscale: both need the backend
 
@@ -84,6 +94,18 @@ Still needed:
 
 ## Status
 
-Background Removal, Backdrop Select, and Photo Upscale are wired end-to-end.
+**`app/` (native Android)**: Background Removal, Backdrop Select, and Photo
+Upscale are wired end-to-end and working.
+
+**`mobile/` (Flutter studio app)**: one screen wired to two paid fal.ai
+endpoints (background removal + AI studio backdrop generation). Not yet
+built: product shadows, AI model fitting/virtual try-on, AI upscaling,
+Firebase auth, credits, and payments — see `mobile/README.md`. Also not yet
+verified: this Dart code has never been compiled (no Flutter SDK in the
+sandbox it was written in) — the first real test is whatever CI reports
+on `.github/workflows/build-flutter-apk.yml`, and the fal.ai model IDs it
+depends on need to be checked against fal.ai's own catalog before use (see
+`backend/README.md`).
+
 See `CLAUDE.md` for the gstack skill workflow this project uses, and
-`store-listing.md` for the target feature set.
+`store-listing.md` for `app/`'s target feature set.
