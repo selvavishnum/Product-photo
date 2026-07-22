@@ -9,6 +9,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-fetch the u2net model (~176MB) at build time, baked into this image
+# layer. Without this, the free tier's first request after every cold
+# start/restart (disk is wiped each time) would need to download it before
+# answering, which blows past both the app's and the host's request
+# timeouts -- that's what caused the real-device "timeout" errors.
+RUN python -c "from rembg import new_session; new_session('u2net')"
+
 COPY main.py .
 
 ENV PORT=7860

@@ -23,8 +23,10 @@ object NetworkModule {
 
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS) // image processing can take a few seconds
+        // Render's free tier sleeps after 15 min idle and can take up to
+        // ~60s to wake a cold container back up before it even answers.
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS) // cold start + image processing
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
