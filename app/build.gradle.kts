@@ -82,7 +82,9 @@ dependencies {
 
     // On-device background removal -- Google-hosted model, delivered/run via
     // Play Services, no backend and no model file we have to manage.
-    implementation("com.google.mlkit:subject-segmentation:16.0.0-beta1")
+    // Version range: this sandbox can't reach dl.google.com to pin an exact
+    // version (16.0.0-beta1 turned out not to exist); CI resolves this fine.
+    implementation("com.google.mlkit:subject-segmentation:16.+")
 
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
