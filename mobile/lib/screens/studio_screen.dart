@@ -129,10 +129,48 @@ class _StudioScreenState extends State<StudioScreen> {
     switch (_stage) {
       case _Stage.picking:
         return Center(
-          child: ElevatedButton.icon(
-            onPressed: _pickAndRemoveBackground,
-            icon: const Icon(Icons.add_photo_alternate),
-            label: const Text('Pick a product photo'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Turn any product photo into a studio shot',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  'AI removes the background, then generates a studio '
+                  'backdrop from a preset theme or your own prompt.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                onPressed: _pickAndRemoveBackground,
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text('Pick a product photo'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+            ],
           ),
         );
 
