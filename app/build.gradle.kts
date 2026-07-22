@@ -14,8 +14,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Base URL of the backend (see /backend), used by both
-        // background removal and Upscale.
+        // Base URL of the backend (see /backend), used by Upscale only --
+        // background removal runs on-device via ML Kit, no backend involved.
         // Override per-build via -PbackendUrl=https://... or a local.properties entry.
         buildConfigField(
             "String",
@@ -66,6 +66,7 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
     implementation("androidx.activity:activity-compose:1.9.0")
@@ -78,6 +79,10 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // On-device background removal -- Google-hosted model, delivered/run via
+    // Play Services, no backend and no model file we have to manage.
+    implementation("com.google.mlkit:subject-segmentation:16.0.0-beta1")
 
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

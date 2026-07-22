@@ -1,10 +1,10 @@
 # Product Photo AI — Backend
 
-FastAPI service with two endpoints:
-- Background removal via [`rembg`](https://github.com/danielgatis/rembg)
-  (open-source, ONNX-based, runs locally).
-- Upscale via classical Lanczos resampling + an unsharp mask (Pillow only —
-  no model, no download).
+FastAPI service for **Photo Upscale only** — classical Lanczos resampling +
+an unsharp mask (Pillow only, no model, no download). Background removal
+runs on-device in the app (Google ML Kit) and never calls this backend; the
+`/remove-background` endpoint below still exists and is still tested, but
+the app itself doesn't use it.
 
 There is no third-party AI API key anywhere in this service — the Android
 app calls this backend, and this backend calls no one.
@@ -23,7 +23,8 @@ CI runner.
 
 Point the Android app at this server via `BACKEND_BASE_URL`
 (`app/build.gradle.kts`) — defaults to `http://10.0.2.2:8000/`, which reaches
-your machine's `localhost:8000` from the Android emulator.
+your machine's `localhost:8000` from the Android emulator. Only Upscale uses
+this; background removal doesn't need it.
 
 ## Test
 

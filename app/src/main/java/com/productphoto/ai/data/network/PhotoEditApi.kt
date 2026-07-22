@@ -9,18 +9,13 @@ import retrofit2.http.Part
 import retrofit2.http.Query
 
 /**
- * Talks to the app's own backend (see /backend): `rembg` for background
- * removal, classical Lanczos resample + unsharp mask for upscale. No
- * third-party AI API key is involved anywhere in this path — the server
- * holds no secrets to protect.
+ * Talks to the app's own backend (see /backend) for Upscale: classical
+ * Lanczos resample + unsharp mask. Background removal runs on-device (see
+ * ml/BackgroundRemover.kt) and never reaches this API. No third-party AI API
+ * key is involved anywhere in this path — the server holds no secrets to
+ * protect.
  */
 interface PhotoEditApi {
-    @Multipart
-    @POST("remove-background")
-    suspend fun removeBackground(
-        @Part image: MultipartBody.Part,
-    ): Response<ResponseBody>
-
     @Multipart
     @POST("upscale")
     suspend fun upscale(
