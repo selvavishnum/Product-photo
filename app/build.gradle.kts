@@ -14,13 +14,15 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Base URL of the backend (see /backend), used by both
-        // background removal and Upscale.
-        // Override per-build via -PbackendUrl=https://... or a local.properties entry.
+        // Base URL of the backend (see /backend), used by both background
+        // removal and Upscale. Defaults to the hosted Render.com deployment
+        // so a stock debug/release build works on a real phone with no setup.
+        // Override per-build via -PbackendUrl=https://... (e.g. for local/
+        // emulator testing against http://10.0.2.2:8000/).
         buildConfigField(
             "String",
             "BACKEND_BASE_URL",
-            "\"${project.findProperty("backendUrl") ?: "http://10.0.2.2:8000/"}\""
+            "\"${project.findProperty("backendUrl") ?: "https://product-photo-backend.onrender.com/"}\""
         )
     }
 

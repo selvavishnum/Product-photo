@@ -10,8 +10,9 @@ on:
       backend_url:
         description: >
           Backend base URL to bake into this build (e.g. http://<your-computer's-LAN-IP>:8000/
-          for a real phone on the same WiFi, or a public HTTPS URL). Leave blank to use the
-          default (http://10.0.2.2:8000/, which only works on the Android emulator).
+          for a real phone on the same WiFi, or your own hosted URL). Leave blank to use the
+          default (the hosted Render.com deployment, which works out of the box on a real
+          phone with no setup).
         required: false
         default: ""
 
@@ -65,8 +66,8 @@ jobs:
           make_latest: true
           body: >
             Automatically built from the latest commit on `main`
-            (${{ github.sha }}). Debug build, talks to
-            `http://10.0.2.2:8000/` for Background Removal and Upscale
-            (emulator only) unless rebuilt with a custom `backend_url` via
-            workflow_dispatch. Not a signed Play Store release.
+            (${{ github.sha }}). Talks to the hosted Render.com backend by
+            default, so both Background Removal and Upscale work out of the
+            box on a real phone -- unless rebuilt with a custom `backend_url`
+            via workflow_dispatch. Not a signed Play Store release.
           files: app/build/outputs/apk/debug/app-debug.apk
