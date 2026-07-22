@@ -14,13 +14,15 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Base URL of the backend (see /backend), used by Upscale only --
-        // background removal runs on-device via ML Kit, no backend involved.
-        // Override per-build via -PbackendUrl=https://... or a local.properties entry.
+        // Base URL of the backend (see /backend), used by both background
+        // removal and Upscale. Defaults to the hosted Render.com deployment
+        // so a stock debug/release build works on a real phone with no setup.
+        // Override per-build via -PbackendUrl=https://... (e.g. for local/
+        // emulator testing against http://10.0.2.2:8000/).
         buildConfigField(
             "String",
             "BACKEND_BASE_URL",
-            "\"${project.findProperty("backendUrl") ?: "http://10.0.2.2:8000/"}\""
+            "\"${project.findProperty("backendUrl") ?: "https://product-photo-backend.onrender.com/"}\""
         )
     }
 
@@ -66,7 +68,6 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
     implementation("androidx.activity:activity-compose:1.9.0")
@@ -79,12 +80,6 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.6.0")
-
-    // On-device background removal -- Google-hosted model, delivered/run via
-    // Play Services, no backend and no model file we have to manage.
-    // Version range: this sandbox can't reach dl.google.com to pin an exact
-    // version (16.0.0-beta1 turned out not to exist); CI resolves this fine.
-    implementation("com.google.mlkit:subject-segmentation:16.+")
 
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

@@ -1,13 +1,18 @@
 # Product Photo AI — Backend
 
-FastAPI service for **Photo Upscale only** — classical Lanczos resampling +
-an unsharp mask (Pillow only, no model, no download). Background removal
-runs on-device in the app (Google ML Kit) and never calls this backend; the
-`/remove-background` endpoint below still exists and is still tested, but
-the app itself doesn't use it.
+FastAPI service with two endpoints:
+- Background removal via [`rembg`](https://github.com/danielgatis/rembg)
+  (open-source, ONNX-based, runs locally).
+- Upscale via classical Lanczos resampling + an unsharp mask (Pillow only —
+  no model, no download).
 
 There is no third-party AI API key anywhere in this service — the Android
 app calls this backend, and this backend calls no one.
+
+**Already hosted** for this app at `https://product-photo-backend.onrender.com/`
+(Render.com free tier) — that's the default `BACKEND_BASE_URL` baked into the
+app, so you don't need to deploy anything yourself unless you want your own
+copy.
 
 ## Run locally
 
@@ -22,9 +27,9 @@ work in network-restricted sandboxes, only on a real dev machine, server, or
 CI runner.
 
 Point the Android app at this server via `BACKEND_BASE_URL`
-(`app/build.gradle.kts`) — defaults to `http://10.0.2.2:8000/`, which reaches
-your machine's `localhost:8000` from the Android emulator. Only Upscale uses
-this; background removal doesn't need it.
+(`app/build.gradle.kts`) -- override with `-PbackendUrl=http://10.0.2.2:8000/`
+to reach a locally-run server from the Android emulator (the app's baked-in
+default is the hosted Render URL above, not this).
 
 ## Test
 
@@ -50,16 +55,41 @@ no model to stub, it's plain Pillow — and check actual output dimensions.
 
 ## Deploying
 
-Any host that can run a Python ASGI app works (Fly.io, Railway, a VPS, a
-Docker container). Put a real domain behind HTTPS in front of it and update
-`BACKEND_BASE_URL` in the Android build config before shipping — the app's
-release manifest does not allow cleartext HTTP.
+Any host that can run a Python ASGI app works (Render, Fly.io, Railway, a
+VPS, a Docker container). Put a real domain behind HTTPS in front of it and
+update `BACKEND_BASE_URL` in the Android build config before shipping — the
+app's release manifest does not allow cleartext HTTP.
 
-### Free option, no computer required: Hugging Face Spaces
+### Free option, no computer required: Render.com
 
-`Dockerfile` in this folder is set up for HF Spaces' Docker SDK (listens on
-port 7860, which Spaces expects). This can be done entirely from a phone
-browser — no local machine, no `git push` needed:
+This is what's already deployed for this app (see the URL above). Entirely
+from a phone browser, no `git push` needed:
+
+1. Go to render.com → sign up (free, via GitHub) → authorize Render for
+   this repo (or all repos).
+2. **New +** → **Web Service** → select this repo.
+3. **Root Directory**: `backend` (so Render only builds this folder's
+   `Dockerfile`, not the whole monorepo). Render auto-detects Docker once
+   this is set.
+4. **Instance Type**: **Free**. Create the service.
+5. Watch the **Logs** tab until it says **"Live"** — the backend is now at
+   `https://<your-service-name>.onrender.com`.
+6. Point the app at it (already the default if you're using this app's own
+   deployment above; for your own):
+   ```bash
+   ./gradlew assembleDebug -PbackendUrl=https://<your-service-name>.onrender.com/
+   ```
+   or via the CI workflow's `backend_url` input (see root `README.md`).
+
+Free-tier caveat: the service sleeps after ~15 minutes of no traffic and
+takes about 50s to wake up on the next request (cold start). Fine for
+testing and low-traffic use; upgrade to a paid tier if it becomes a
+bottleneck.
+
+### Alternative: Hugging Face Spaces
+
+Also free, no computer required, same idea (Docker SDK, phone-browser file
+upload instead of a repo connection):
 
 1. Go to huggingface.co → sign up (free) → **New Space**.
 2. SDK: **Docker**. Hardware: the free **CPU basic** tier. Give it a name.
@@ -69,14 +99,5 @@ browser — no local machine, no `git push` needed:
 4. The Space builds automatically (watch the **Logs** tab). Once it says
    "Running", the backend is live at
    `https://<your-username>-<space-name>.hf.space`.
-5. Point the app at it — this URL is already HTTPS, so it works with the
-   release build too, not just debug:
-   ```bash
-   ./gradlew assembleDebug -PbackendUrl=https://<your-username>-<space-name>.hf.space/
-   ```
-   or via the CI workflow's `backend_url` input (see root `README.md`).
 
-Free-tier caveats: the Space may sleep after a period of inactivity and take
-a bit to wake up on the next request (cold start), and CPU-only inference is
-slower than a dedicated server. Fine for testing and low-traffic use; revisit
-a paid tier if it becomes a bottleneck.
+Same free-tier cold-start caveat as Render.

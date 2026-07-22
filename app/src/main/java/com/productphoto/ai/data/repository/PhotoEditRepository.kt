@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import com.productphoto.ai.data.network.NetworkModule
-import com.productphoto.ai.ml.BackgroundRemover
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -27,22 +26,14 @@ sealed interface PhotoEditResult {
 class PhotoEditRepository(private val appContext: Context) {
 
     private val api = NetworkModule.photoEditApi
-    private val backgroundRemover = BackgroundRemover()
 
     suspend fun removeBackground(sourceUri: Uri): PhotoEditResult = withContext(Dispatchers.IO) {
         runCatching {
-            val sourceBitmap = decodeUriToBitmap(sourceUri)
-            PhotoEditResult.Success(backgroundRemover.removeBackground(sourceBitmap))
+            val inputFile = copyUriToCacheFile(sourceUri)
+            val response = api.removeBackground(buildImagePart(inputFile))
+            inputFile.delete()
+            decodeResponse(response)
         }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
-    }
-
-    /** ML Kit's InputImage.fromBitmap requires ARGB_8888, so decode explicitly instead of trusting the default. */
-    private fun decodeUriToBitmap(uri: Uri): Bitmap {
-        val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
-        val bitmap = appContext.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, options)
-        }
-        return requireNotNull(bitmap) { "Could not decode selected image" }
     }
 
     suspend fun upscale(sourceBitmap: Bitmap, scale: Int = 2): PhotoEditResult =
@@ -69,6 +60,17 @@ class PhotoEditRepository(private val appContext: Context) {
     private fun buildImagePart(file: File): MultipartBody.Part {
         val requestBody = file.asRequestBody("image/*".toMediaTypeOrNull())
         return MultipartBody.Part.createFormData("image", file.name, requestBody)
+    }
+
+    /** Retrofit needs a File/RequestBody, so stage the picked image in cache first. */
+    private fun copyUriToCacheFile(uri: Uri): File {
+        val outFile = File.createTempFile("upload", ".jpg", appContext.cacheDir)
+        appContext.contentResolver.openInputStream(uri).use { input ->
+            FileOutputStream(outFile).use { output ->
+                requireNotNull(input) { "Could not open selected image" }.copyTo(output)
+            }
+        }
+        return outFile
     }
 
     private fun bitmapToCacheFile(bitmap: Bitmap): File {
