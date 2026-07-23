@@ -65,6 +65,52 @@ class ApiService {
     return _downloadBytes(upscaledUrl);
   }
 
+  /// Free, classical drop-shadow compositing (no fal.ai call, no cost) --
+  /// see backend/services/shadows.py. Returns raw PNG bytes directly,
+  /// unlike the /ai/* endpoints which return a JSON-wrapped URL.
+  Future<Uint8List> addShadow(Uint8List cutoutBytes) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/shadows'));
+    request.files.add(
+      http.MultipartFile.fromBytes('image', cutoutBytes, filename: 'cutout.png'),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode != 200) {
+      throw ApiException('/shadows failed (${response.statusCode}): ${response.body}');
+    }
+    return response.bodyBytes;
+  }
+
+  /// Places [garmentBytes] (a clothing/jewelry cutout) onto an AI-generated
+  /// model via fal.ai's IDM-VTON, described by [garmentDescription].
+  Future<Uint8List> virtualTryOn({
+    required Uint8List garmentBytes,
+    required String garmentDescription,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/ai/virtual-tryon'),
+    );
+    request.fields['garment_description'] = garmentDescription;
+    request.files.add(
+      http.MultipartFile.fromBytes('garment_image', garmentBytes, filename: 'garment.png'),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        '/ai/virtual-tryon failed (${response.statusCode}): ${response.body}',
+      );
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return _downloadBytes(body['result_url'] as String);
+  }
+
   Future<String> _postImageForUrl({
     required String endpoint,
     required String responseKey,

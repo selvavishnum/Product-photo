@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Grid/list of AI tools, matching Photoroom's "AI tools" tab shape.
-/// Tapping an available tool switches back to the Home tab, since they're
-/// all steps of the one studio flow there -- not separate implementations.
-/// The two disabled tiles are honest about what isn't built yet.
+/// Tapping a tile switches back to the Home tab, since they're all steps of
+/// the one studio flow there -- not separate implementations.
 class AiToolsScreen extends StatelessWidget {
   const AiToolsScreen({super.key, required this.onOpenStudio});
 
@@ -40,16 +39,17 @@ class AiToolsScreen extends StatelessWidget {
             subtitle: 'Crop, filters, tune, paint, text, stickers',
             onTap: onOpenStudio,
           ),
-          const Divider(height: 32),
-          const _ToolTile(
+          _ToolTile(
             icon: Icons.wb_shade_outlined,
             title: 'AI Shadows',
-            subtitle: 'Realistic drop shadows on generated surfaces -- coming soon',
+            subtitle: 'Realistic drop shadows on the result (free)',
+            onTap: onOpenStudio,
           ),
-          const _ToolTile(
+          _ToolTile(
             icon: Icons.checkroom_outlined,
             title: 'AI Fashion Models',
-            subtitle: 'Virtual try-on for clothing and jewelry -- coming soon',
+            subtitle: 'Virtual try-on for clothing and jewelry (paid)',
+            onTap: onOpenStudio,
           ),
         ],
       ),

@@ -2,15 +2,17 @@
 
 FastAPI service with two groups of endpoints:
 - **Free, no API key**: `/remove-background` (`rembg`, open-source,
-  ONNX-based, runs locally) and `/upscale` (classical Lanczos resampling +
-  unsharp mask, Pillow only). Used by the existing native Android app
+  ONNX-based, runs locally), `/upscale` (classical Lanczos resampling +
+  unsharp mask, Pillow only), and `/shadows` (classical drop-shadow
+  compositing, Pillow only). Used by the existing native Android app
   (`../app`).
 - **Paid, needs a fal.ai account**: `/ai/remove-background`,
-  `/ai/generate-background`, and `/ai/upscale`. `/ai/remove-background` and
-  `/ai/generate-background` are used by the Flutter studio app (`../mobile`)
-  only; `/ai/upscale` is used by both `../mobile` and the native Android
-  app (`../app`, as a paid alternative to its free `/upscale`). See "fal.ai
-  AI features" below before using these — every call costs money.
+  `/ai/generate-background`, `/ai/upscale`, and `/ai/virtual-tryon`.
+  `/ai/remove-background`, `/ai/generate-background`, and
+  `/ai/virtual-tryon` are used by the Flutter studio app (`../mobile`) only;
+  `/ai/upscale` is used by both `../mobile` and the native Android app
+  (`../app`, as a paid alternative to its free `/upscale`). See "fal.ai AI
+  features" below before using these — every call costs money.
 
 **Already hosted** for this app at `https://product-photo-backend.onrender.com/`
 (Render.com free tier) — that's the default `BACKEND_BASE_URL` baked into the
@@ -70,6 +72,14 @@ no model to stub, it's plain Pillow — and check actual output dimensions.
   `scale` (1-4, default 2); calls Real-ESRGAN on fal.ai, returns
   `{"upscaled_url": "https://..."}`. Paid alternative to `/upscale`'s free
   classical resampling. **Costs money per call.**
+- `POST /shadows` — multipart form field `image` (a cutout PNG with
+  transparency); returns a larger PNG with a soft drop shadow composited
+  behind the subject. Classical Pillow blur, not IC-Light — see
+  `services/shadows.py`'s docstring for why. Free, no API key.
+- `POST /ai/virtual-tryon` — multipart form field `garment_image` (a
+  clothing/jewelry cutout), form field `garment_description` (required),
+  optional multipart field `model_image`. Calls IDM-VTON on fal.ai, returns
+  `{"result_url": "https://..."}`. **Costs money per call.**
 
 ## fal.ai AI features (`/ai/*` endpoints)
 
@@ -83,13 +93,14 @@ native Android app. They need:
    → add `FAL_KEY`).
 3. **Verify the model IDs** in `services/background_removal.py`
    (`BIREFNET_MODEL_ID`), `services/background_generation.py`
-   (`FLUX_INPAINT_MODEL_ID`), and `services/upscale_ai.py`
-   (`REALESRGAN_MODEL_ID`) against fal.ai's own model catalog
-   (fal.ai/models) before relying on them. This repo's sandbox has no
-   network access to fal.ai, so these are unverified placeholders, not
-   confirmed-correct values — the same mistake cost real CI cycles earlier
-   in this project with a wrong Maven dependency, so don't assume these are
-   right without checking.
+   (`FLUX_INPAINT_MODEL_ID`), `services/upscale_ai.py`
+   (`REALESRGAN_MODEL_ID`), and `services/virtual_tryon.py`
+   (`IDM_VTON_MODEL_ID`) against fal.ai's own model catalog (fal.ai/models)
+   before relying on them. This repo's sandbox has no network access to
+   fal.ai, so these are unverified placeholders, not confirmed-correct
+   values — the same mistake cost real CI cycles earlier in this project
+   with a wrong Maven dependency, so don't assume these are right without
+   checking.
 
 Uses BiRefNet (MIT licensed) rather than Bria RMBG 2.0 (CC BY-NC 4.0,
 **non-commercial only**) for removal — this app has a paid credit system

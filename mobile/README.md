@@ -17,26 +17,25 @@ The app opens into a Photoroom-style bottom nav (`screens/home_shell.dart`):
 **Home**, **AI tools**, **Batch**, **Content**.
 
 - **Home** — the studio flow: pick photo → remove background → pick a theme
-  or type a custom prompt → generate studio backdrop → preview, plus
-  "AI Upscale (paid)" and a full photo editor
+  or type a custom prompt → generate studio backdrop → preview, plus on the
+  result: "AI Upscale (paid)", "Add Shadow" (free, classical drop shadow),
+  "Virtual Try-On (paid)" (asks for a garment description, then places it on
+  an AI model), and a full photo editor
   ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
-  crop/rotate, filters, tune/adjust, blur, paint, text, stickers) reachable
-  from both the cutout and final-result screens. Editor output is forced to
-  PNG so an edited cutout keeps the transparency the backdrop generator's
-  mask derivation depends on.
-- **AI tools** — a menu into the same Home flow (tapping a tile switches
-  back to Home), plus two honestly-disabled tiles (AI Shadows, AI Fashion
-  Models) for features not built yet — not faked as working buttons.
+  crop/rotate, filters, tune/adjust, blur, paint, text, stickers). Editor
+  output is forced to PNG so an edited cutout keeps the transparency the
+  backdrop generator's mask derivation depends on.
+- **AI tools** — a menu into the same Home flow; every tile is available
+  (tapping any of them switches back to Home).
 - **Batch** and **Content** — honest "Coming soon" placeholders
   (`screens/batch_screen.dart`, `screens/content_screen.dart`). Batch
   (multi-image processing) and Content (sign-in + saved designs, needs
   Firebase Auth/Storage) are real, separate pieces of work, not built yet.
 
-**Not yet built** (from the fuller product spec): product shadow
-generation, AI model fitting/virtual try-on, Firebase auth, the
-credit/subscription system, and payments (Razorpay/Play Billing). Those are
-real, separate pieces of work — see the root `README.md`'s project status
-for what's actually live.
+**Not yet built** (from the fuller product spec): Firebase auth, the
+credit/subscription system, and payments (Razorpay/Play Billing), plus
+Batch and Content above. See the root `README.md`'s project status for
+what's actually live.
 
 ## Structure
 
@@ -96,13 +95,14 @@ flutter run          # or: flutter build apk --debug
 
 See `../backend/README.md`'s "fal.ai AI features" section — you need a
 funded fal.ai account and a `FAL_KEY` set on whatever host runs the backend,
-plus verifying the exact model IDs in `backend/services/background_removal.py`
-and `backend/services/background_generation.py` against your fal.ai
-dashboard (this repo's sandbox has no network access to fal.ai to verify
-them independently, so treat them as placeholders to confirm, not
+plus verifying the exact model IDs in `backend/services/background_removal.py`,
+`background_generation.py`, `upscale_ai.py`, and `virtual_tryon.py` against
+your fal.ai dashboard (this repo's sandbox has no network access to fal.ai
+to verify them independently, so treat them as placeholders to confirm, not
 guaranteed-correct values).
 
-**Every `/ai/remove-background` and `/ai/generate-background` call costs
-real money** on your fal.ai account — unlike `../app`'s free `rembg`-based
-removal. Test with a small number of images first and check fal.ai's
-dashboard for actual per-call cost before assuming a price.
+**Every `/ai/*` call costs real money** on your fal.ai account — unlike
+`../app`'s free `rembg`-based removal, and unlike this app's own "Add
+Shadow" button (classical, free, no fal.ai call). Test with a small number
+of images first and check fal.ai's dashboard for actual per-call cost
+before assuming a price.

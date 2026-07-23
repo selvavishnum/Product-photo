@@ -31,6 +31,10 @@ class _StudioScreenState extends State<StudioScreen> {
   String? _errorMessage;
   bool _isUpscaling = false;
   String? _upscaleError;
+  bool _isAddingShadow = false;
+  String? _shadowError;
+  bool _isTryingOn = false;
+  String? _tryOnError;
 
   @override
   void initState() {
@@ -125,6 +129,85 @@ class _StudioScreenState extends State<StudioScreen> {
     }
   }
 
+  /// Free, classical drop-shadow compositing (no fal.ai call) -- see
+  /// backend/services/shadows.py.
+  Future<void> _addShadow() async {
+    final current = _resultBytes ?? _cutoutBytes;
+    if (current == null || _isAddingShadow) return;
+
+    setState(() {
+      _isAddingShadow = true;
+      _shadowError = null;
+    });
+
+    try {
+      final shadowed = await _api.addShadow(current);
+      setState(() => _resultBytes = shadowed);
+    } catch (e) {
+      setState(() => _shadowError = e.toString());
+    } finally {
+      setState(() => _isAddingShadow = false);
+    }
+  }
+
+  Future<String?> _promptForGarmentDescription() async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Describe the garment'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'e.g. a gold necklace with pearl beads',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+              child: const Text('Try On'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  /// AI Fashion Models / Virtual Try-On (IDM-VTON via fal.ai) -- places the
+  /// current cutout/result onto an AI-generated model.
+  Future<void> _tryOnModel() async {
+    final current = _resultBytes ?? _cutoutBytes;
+    if (current == null || _isTryingOn) return;
+
+    final description = await _promptForGarmentDescription();
+    if (description == null || description.trim().isEmpty) return;
+
+    setState(() {
+      _isTryingOn = true;
+      _tryOnError = null;
+    });
+
+    try {
+      final result = await _api.virtualTryOn(
+        garmentBytes: current,
+        garmentDescription: description.trim(),
+      );
+      setState(() => _resultBytes = result);
+    } catch (e) {
+      setState(() => _tryOnError = e.toString());
+    } finally {
+      setState(() => _isTryingOn = false);
+    }
+  }
+
   /// Opens the full pro_image_editor UI (crop/rotate, filters, tune, paint,
   /// text, stickers) on the current image. PNG output is forced so editing
   /// the cutout keeps its transparency -- /ai/generate-background derives
@@ -171,9 +254,15 @@ class _StudioScreenState extends State<StudioScreen> {
       _errorMessage = null;
       _upscaleError = null;
       _isUpscaling = false;
+      _shadowError = null;
+      _isAddingShadow = false;
+      _tryOnError = null;
+      _isTryingOn = false;
       _promptController.clear();
     });
   }
+
+  bool get _isBusy => _isUpscaling || _isAddingShadow || _isTryingOn;
 
   @override
   Widget build(BuildContext context) {
@@ -302,31 +391,44 @@ class _StudioScreenState extends State<StudioScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _PreviewImage(bytes: _resultBytes),
-              if (_isUpscaling)
+              if (_isBusy)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Center(child: CircularProgressIndicator()),
                 ),
-              if (_upscaleError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    _upscaleError!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
-                    textAlign: TextAlign.center,
+              for (final error in [_upscaleError, _shadowError, _tryOnError])
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      error,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: _isUpscaling ? null : _openEditor,
+                onPressed: _isBusy ? null : _openEditor,
                 icon: const Icon(Icons.tune),
                 label: const Text('Edit Photo'),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: _isUpscaling ? null : _upscale,
+                onPressed: _isBusy ? null : _upscale,
                 icon: const Icon(Icons.hd),
                 label: const Text('AI Upscale (paid)'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _isBusy ? null : _addShadow,
+                icon: const Icon(Icons.wb_shade_outlined),
+                label: const Text('Add Shadow'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _isBusy ? null : _tryOnModel,
+                icon: const Icon(Icons.checkroom_outlined),
+                label: const Text('Virtual Try-On (paid)'),
               ),
               const SizedBox(height: 8),
               ElevatedButton(onPressed: _reset, child: const Text('Start over')),
