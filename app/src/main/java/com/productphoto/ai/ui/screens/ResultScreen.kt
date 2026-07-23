@@ -45,6 +45,7 @@ fun ResultScreen(
     isUpscaling: Boolean,
     upscaleError: String?,
     onUpscale: () -> Unit,
+    onAiUpscale: () -> Unit,
     isSaving: Boolean,
     saveConfirmed: Boolean,
     onSave: () -> Unit,
@@ -132,6 +133,9 @@ fun ResultScreen(
             }
             OutlinedButton(onClick = onUpscale, enabled = !isUpscaling) {
                 Text(text = stringResource(R.string.upscale))
+            }
+            OutlinedButton(onClick = onAiUpscale, enabled = !isUpscaling) {
+                Text(text = stringResource(R.string.ai_upscale))
             }
             Button(onClick = onSave, enabled = !isSaving) {
                 if (isSaving) {

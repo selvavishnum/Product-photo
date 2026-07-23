@@ -5,10 +5,12 @@ FastAPI service with two groups of endpoints:
   ONNX-based, runs locally) and `/upscale` (classical Lanczos resampling +
   unsharp mask, Pillow only). Used by the existing native Android app
   (`../app`).
-- **Paid, needs a fal.ai account**: `/ai/remove-background` and
-  `/ai/generate-background`, used by the new Flutter studio app
-  (`../mobile`). See "fal.ai AI features" below before using these — every
-  call costs money.
+- **Paid, needs a fal.ai account**: `/ai/remove-background`,
+  `/ai/generate-background`, and `/ai/upscale`. `/ai/remove-background` and
+  `/ai/generate-background` are used by the Flutter studio app (`../mobile`)
+  only; `/ai/upscale` is used by both `../mobile` and the native Android
+  app (`../app`, as a paid alternative to its free `/upscale`). See "fal.ai
+  AI features" below before using these — every call costs money.
 
 **Already hosted** for this app at `https://product-photo-backend.onrender.com/`
 (Render.com free tier) — that's the default `BACKEND_BASE_URL` baked into the
@@ -64,6 +66,10 @@ no model to stub, it's plain Pillow — and check actual output dimensions.
   description — overrides `theme_key` if both are given). Calls FLUX.1 dev
   inpainting on fal.ai, returns `{"generated_url": "https://..."}`. **Costs
   money per call.**
+- `POST /ai/upscale` — multipart form field `image`, optional query param
+  `scale` (1-4, default 2); calls Real-ESRGAN on fal.ai, returns
+  `{"upscaled_url": "https://..."}`. Paid alternative to `/upscale`'s free
+  classical resampling. **Costs money per call.**
 
 ## fal.ai AI features (`/ai/*` endpoints)
 
@@ -76,8 +82,9 @@ native Android app. They need:
    variable on whatever host runs this backend (Render: **Environment** tab
    → add `FAL_KEY`).
 3. **Verify the model IDs** in `services/background_removal.py`
-   (`BIREFNET_MODEL_ID`) and `services/background_generation.py`
-   (`FLUX_INPAINT_MODEL_ID`) against fal.ai's own model catalog
+   (`BIREFNET_MODEL_ID`), `services/background_generation.py`
+   (`FLUX_INPAINT_MODEL_ID`), and `services/upscale_ai.py`
+   (`REALESRGAN_MODEL_ID`) against fal.ai's own model catalog
    (fal.ai/models) before relying on them. This repo's sandbox has no
    network access to fal.ai, so these are unverified placeholders, not
    confirmed-correct values — the same mistake cost real CI cycles earlier

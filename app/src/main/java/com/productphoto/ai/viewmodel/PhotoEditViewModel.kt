@@ -95,6 +95,26 @@ class PhotoEditViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    /** Paid alternative to [upscale] -- Real-ESRGAN via fal.ai instead of
+     * classical Lanczos resampling. Costs money per call. */
+    fun aiUpscale() {
+        val source = resultBitmap ?: return
+        isUpscaling = true
+        upscaleError = null
+        viewModelScope.launch {
+            when (val result = repository.aiUpscale(source, scale = 2)) {
+                is PhotoEditResult.Success -> {
+                    resultBitmap = result.bitmap
+                    displayBitmap = compositeWithBackdrop(result.bitmap, selectedBackdrop)
+                }
+                is PhotoEditResult.Failure -> {
+                    upscaleError = result.message
+                }
+            }
+            isUpscaling = false
+        }
+    }
+
     fun saveResult() {
         val bitmap = displayBitmap ?: return
         isSaving = true

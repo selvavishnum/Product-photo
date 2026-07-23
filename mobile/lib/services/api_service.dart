@@ -52,14 +52,32 @@ class ApiService {
     return _downloadBytes(generatedUrl);
   }
 
+  /// Uploads [imageBytes] to be AI-upscaled (Real-ESRGAN via fal.ai),
+  /// returns the upscaled result's decoded bytes. `scale` is a query
+  /// param on this endpoint (not a form field, unlike theme_key/prompt).
+  Future<Uint8List> upscaleAi({required Uint8List imageBytes, int scale = 2}) async {
+    final upscaledUrl = await _postImageForUrl(
+      endpoint: '/ai/upscale',
+      responseKey: 'upscaled_url',
+      imageBytes: imageBytes,
+      queryParameters: {'scale': '$scale'},
+    );
+    return _downloadBytes(upscaledUrl);
+  }
+
   Future<String> _postImageForUrl({
     required String endpoint,
     required String responseKey,
     File? imageFile,
     Uint8List? imageBytes,
     Map<String, String> fields = const {},
+    Map<String, String> queryParameters = const {},
   }) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
+    var uri = Uri.parse('$baseUrl$endpoint');
+    if (queryParameters.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParameters);
+    }
+    final request = http.MultipartRequest('POST', uri);
     request.fields.addAll(fields);
 
     if (imageFile != null) {

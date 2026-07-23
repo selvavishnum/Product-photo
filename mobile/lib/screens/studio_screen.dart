@@ -28,6 +28,8 @@ class _StudioScreenState extends State<StudioScreen> {
   List<StudioTheme> _themes = [];
   String? _selectedThemeKey;
   String? _errorMessage;
+  bool _isUpscaling = false;
+  String? _upscaleError;
 
   @override
   void initState() {
@@ -103,6 +105,25 @@ class _StudioScreenState extends State<StudioScreen> {
     }
   }
 
+  Future<void> _upscale() async {
+    final current = _resultBytes ?? _cutoutBytes;
+    if (current == null || _isUpscaling) return;
+
+    setState(() {
+      _isUpscaling = true;
+      _upscaleError = null;
+    });
+
+    try {
+      final upscaled = await _api.upscaleAi(imageBytes: current, scale: 2);
+      setState(() => _resultBytes = upscaled);
+    } catch (e) {
+      setState(() => _upscaleError = e.toString());
+    } finally {
+      setState(() => _isUpscaling = false);
+    }
+  }
+
   void _reset() {
     setState(() {
       _stage = _Stage.picking;
@@ -110,6 +131,8 @@ class _StudioScreenState extends State<StudioScreen> {
       _resultBytes = null;
       _selectedThemeKey = null;
       _errorMessage = null;
+      _upscaleError = null;
+      _isUpscaling = false;
       _promptController.clear();
     });
   }
@@ -235,7 +258,27 @@ class _StudioScreenState extends State<StudioScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _PreviewImage(bytes: _resultBytes),
+              if (_isUpscaling)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              if (_upscaleError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _upscaleError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isUpscaling ? null : _upscale,
+                icon: const Icon(Icons.hd),
+                label: const Text('AI Upscale (paid)'),
+              ),
+              const SizedBox(height: 8),
               ElevatedButton(onPressed: _reset, child: const Text('Start over')),
             ],
           ),

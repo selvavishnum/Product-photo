@@ -232,3 +232,55 @@ def test_ai_generate_background_propagates_fal_error_as_502():
         )
 
     assert response.status_code == 502
+
+
+def test_ai_upscale_returns_upscaled_url():
+    source = io.BytesIO()
+    Image.new("RGB", (20, 20), (10, 10, 10)).save(source, format="PNG")
+    source.seek(0)
+
+    with patch(
+        "main.upscale_ai.upscale_with_ai",
+        return_value="https://fal.media/files/upscaled.png",
+    ) as mock_upscale:
+        response = client.post(
+            "/ai/upscale",
+            files={"image": ("product.png", source, "image/png")},
+            params={"scale": 3},
+        )
+
+    assert mock_upscale.called
+    assert response.status_code == 200
+    assert response.json() == {"upscaled_url": "https://fal.media/files/upscaled.png"}
+
+
+def test_ai_upscale_rejects_invalid_scale():
+    source = io.BytesIO()
+    Image.new("RGB", (20, 20), (10, 10, 10)).save(source, format="PNG")
+    source.seek(0)
+
+    response = client.post(
+        "/ai/upscale",
+        files={"image": ("product.png", source, "image/png")},
+        params={"scale": 10},
+    )
+
+    assert response.status_code == 400
+
+
+def test_ai_upscale_propagates_fal_error_as_502():
+    source = io.BytesIO()
+    Image.new("RGB", (20, 20), (10, 10, 10)).save(source, format="PNG")
+    source.seek(0)
+
+    with patch(
+        "main.upscale_ai.upscale_with_ai",
+        side_effect=FalAPIError("fal.ai real-esrgan job failed"),
+    ):
+        response = client.post(
+            "/ai/upscale",
+            files={"image": ("product.png", source, "image/png")},
+            params={"scale": 2},
+        )
+
+    assert response.status_code == 502

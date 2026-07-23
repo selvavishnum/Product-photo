@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -45,6 +46,39 @@ class PhotoEditRepository(private val appContext: Context) {
                 decodeResponse(response)
             }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
         }
+
+    /** Paid alternative to [upscale] -- Real-ESRGAN via fal.ai instead of
+     * classical Lanczos resampling. Costs money per call on the backend's
+     * fal.ai account. */
+    suspend fun aiUpscale(sourceBitmap: Bitmap, scale: Int = 2): PhotoEditResult =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val inputFile = bitmapToCacheFile(sourceBitmap)
+                val response = api.aiUpscale(buildImagePart(inputFile), scale)
+                inputFile.delete()
+
+                if (!response.isSuccessful) {
+                    return@runCatching PhotoEditResult.Failure("Server returned ${response.code()}")
+                }
+                val upscaledUrl = response.body()?.upscaledUrl
+                    ?: return@runCatching PhotoEditResult.Failure("Empty response")
+                downloadBitmap(upscaledUrl)
+            }.getOrElse { PhotoEditResult.Failure(it.message ?: "Unknown error") }
+        }
+
+    private fun downloadBitmap(url: String): PhotoEditResult {
+        val request = Request.Builder().url(url).build()
+        NetworkModule.okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                return PhotoEditResult.Failure("Could not download result image (${response.code})")
+            }
+            val bytes = response.body?.bytes()
+                ?: return PhotoEditResult.Failure("Empty result image")
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: return PhotoEditResult.Failure("Could not decode result image")
+            return PhotoEditResult.Success(bitmap)
+        }
+    }
 
     private fun decodeResponse(response: Response<ResponseBody>): PhotoEditResult {
         if (!response.isSuccessful) {
