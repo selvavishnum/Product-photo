@@ -12,4 +12,5 @@
     <string name="backdrop_label">Backdrop</string>
     <string name="upscale">Upscale</string>
     <string name="upscaling">Upscaling…</string>
+    <string name="ai_upscale">AI Upscale (paid)</string>
 </resources>

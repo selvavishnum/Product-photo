@@ -19,7 +19,7 @@ from fastapi.responses import Response
 from PIL import Image, ImageFilter
 from rembg import remove
 
-from services import background_generation, background_removal, mask_utils
+from services import background_generation, background_removal, mask_utils, upscale_ai
 from services.fal_client import FalAPIError
 
 app = FastAPI(title="Product Photo AI Backend")
@@ -147,3 +147,22 @@ async def ai_generate_background(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {"generated_url": generated_url}
+
+
+@app.post("/ai/upscale")
+async def ai_upscale(image: UploadFile = File(...), scale: int = 2) -> dict:
+    """Paid alternative to the free /upscale above -- Real-ESRGAN via
+    fal.ai instead of classical Lanczos resampling."""
+    if scale < 1 or scale > MAX_UPSCALE_FACTOR:
+        raise HTTPException(
+            status_code=400, detail=f"scale must be between 1 and {MAX_UPSCALE_FACTOR}"
+        )
+
+    input_bytes = await _read_validated_image(image)
+
+    try:
+        upscaled_url = upscale_ai.upscale_with_ai(input_bytes, scale, image.content_type)
+    except FalAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {"upscaled_url": upscaled_url}

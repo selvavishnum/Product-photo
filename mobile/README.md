@@ -15,7 +15,12 @@ separate decision for later.
 
 Delivered in this folder: the main studio screen (pick photo → remove
 background → pick a theme or type a custom prompt → generate studio
-backdrop → preview). That's it.
+backdrop → preview), an "AI Upscale (paid)" option on the result, and a
+full photo editor ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
+crop/rotate, filters, tune/adjust, blur, paint, text, stickers) reachable
+from both the cutout and final-result screens. Editor output is forced to
+PNG so an edited cutout keeps the transparency the backdrop generator's
+mask derivation depends on.
 
 **Not yet built** (from the fuller product spec): product shadow
 generation, AI model fitting/virtual try-on, AI-based upscaling, Firebase

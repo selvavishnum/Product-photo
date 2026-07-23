@@ -20,6 +20,9 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: write # needed to publish the GitHub Release below
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -59,3 +62,22 @@ jobs:
           name: product-photo-studio-debug
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 14
+
+      # Only for the real main-branch build (not PRs, not one-off manual
+      # backend_url builds) -- publishes/updates a rolling "studio-latest"
+      # GitHub Release with this APK attached, same pattern as
+      # build-debug-apk.yml uses for the native app (separate tag so the
+      # two don't overwrite each other's release).
+      - name: Publish latest studio release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: studio-latest
+          name: Latest Product Photo Studio debug build
+          prerelease: true
+          make_latest: false
+          body: >
+            Automatically built from the latest commit on `main`
+            (${{ github.sha }}). Requires FAL_KEY configured on the backend
+            for the AI features to work -- see backend/README.md.
+          files: mobile/build/app/outputs/flutter-apk/app-debug.apk

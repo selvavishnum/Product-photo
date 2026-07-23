@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   http: ^1.2.1
   image_picker: ^1.1.2
+  # Full photo editor (crop/rotate, filters, tune, paint, text, stickers).
+  # Version + API verified against the real package source downloaded from
+  # pub.dev (reachable from this sandbox, unlike most registries).
+  pro_image_editor: ^13.2.2
 
 dev_dependencies:
   flutter_test:

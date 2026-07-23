@@ -50,6 +50,7 @@ private fun ProductPhotoApp(viewModel: PhotoEditViewModel) {
                         isUpscaling = viewModel.isUpscaling,
                         upscaleError = viewModel.upscaleError,
                         onUpscale = viewModel::upscale,
+                        onAiUpscale = viewModel::aiUpscale,
                         isSaving = viewModel.isSaving,
                         saveConfirmed = viewModel.saveConfirmed,
                         onSave = viewModel::saveResult,

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pro_image_editor/pro_image_editor.dart';
 
 import '../models/studio_theme.dart';
 import '../services/api_service.dart';
@@ -28,6 +29,8 @@ class _StudioScreenState extends State<StudioScreen> {
   List<StudioTheme> _themes = [];
   String? _selectedThemeKey;
   String? _errorMessage;
+  bool _isUpscaling = false;
+  String? _upscaleError;
 
   @override
   void initState() {
@@ -103,6 +106,62 @@ class _StudioScreenState extends State<StudioScreen> {
     }
   }
 
+  Future<void> _upscale() async {
+    final current = _resultBytes ?? _cutoutBytes;
+    if (current == null || _isUpscaling) return;
+
+    setState(() {
+      _isUpscaling = true;
+      _upscaleError = null;
+    });
+
+    try {
+      final upscaled = await _api.upscaleAi(imageBytes: current, scale: 2);
+      setState(() => _resultBytes = upscaled);
+    } catch (e) {
+      setState(() => _upscaleError = e.toString());
+    } finally {
+      setState(() => _isUpscaling = false);
+    }
+  }
+
+  /// Opens the full pro_image_editor UI (crop/rotate, filters, tune, paint,
+  /// text, stickers) on the current image. PNG output is forced so editing
+  /// the cutout keeps its transparency -- /ai/generate-background derives
+  /// its inpainting mask from the alpha channel.
+  Future<void> _openEditor() async {
+    final current = _resultBytes ?? _cutoutBytes;
+    if (current == null) return;
+
+    final edited = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(
+        builder: (editorContext) => ProImageEditor.memory(
+          current,
+          configs: ProImageEditorConfigs(
+            imageGeneration: const ImageGenerationConfigs(
+              outputFormat: OutputFormat.png,
+            ),
+          ),
+          callbacks: ProImageEditorCallbacks(
+            onImageEditingComplete: (Uint8List bytes) async {
+              Navigator.of(editorContext).pop(bytes);
+            },
+          ),
+        ),
+      ),
+    );
+
+    if (edited != null && mounted) {
+      setState(() {
+        if (_stage == _Stage.done) {
+          _resultBytes = edited;
+        } else {
+          _cutoutBytes = edited;
+        }
+      });
+    }
+  }
+
   void _reset() {
     setState(() {
       _stage = _Stage.picking;
@@ -110,6 +169,8 @@ class _StudioScreenState extends State<StudioScreen> {
       _resultBytes = null;
       _selectedThemeKey = null;
       _errorMessage = null;
+      _upscaleError = null;
+      _isUpscaling = false;
       _promptController.clear();
     });
   }
@@ -129,10 +190,48 @@ class _StudioScreenState extends State<StudioScreen> {
     switch (_stage) {
       case _Stage.picking:
         return Center(
-          child: ElevatedButton.icon(
-            onPressed: _pickAndRemoveBackground,
-            icon: const Icon(Icons.add_photo_alternate),
-            label: const Text('Pick a product photo'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Turn any product photo into a studio shot',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  'AI removes the background, then generates a studio '
+                  'backdrop from a preset theme or your own prompt.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                onPressed: _pickAndRemoveBackground,
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text('Pick a product photo'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+            ],
           ),
         );
 
@@ -186,6 +285,12 @@ class _StudioScreenState extends State<StudioScreen> {
                       )
                     : const Text('Generate Studio Shot'),
               ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _stage == _Stage.generating ? null : _openEditor,
+                icon: const Icon(Icons.tune),
+                label: const Text('Edit Photo'),
+              ),
               TextButton(onPressed: _reset, child: const Text('Start over')),
             ],
           ),
@@ -197,7 +302,33 @@ class _StudioScreenState extends State<StudioScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _PreviewImage(bytes: _resultBytes),
+              if (_isUpscaling)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              if (_upscaleError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _upscaleError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isUpscaling ? null : _openEditor,
+                icon: const Icon(Icons.tune),
+                label: const Text('Edit Photo'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _isUpscaling ? null : _upscale,
+                icon: const Icon(Icons.hd),
+                label: const Text('AI Upscale (paid)'),
+              ),
+              const SizedBox(height: 8),
               ElevatedButton(onPressed: _reset, child: const Text('Start over')),
             ],
           ),

@@ -21,7 +21,10 @@ object NetworkModule {
         }
     }
 
-    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+    /** Public so callers can download fal.ai-hosted result URLs directly (a
+     * different host than [BuildConfig.BACKEND_BASE_URL], so it can't go
+     * through [photoEditApi]'s fixed-base-URL Retrofit instance). */
+    val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
         // Render's free tier sleeps after 15 min idle and can take up to
         // ~60s to wake a cold container back up before it even answers.
