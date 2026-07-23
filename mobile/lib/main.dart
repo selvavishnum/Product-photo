@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/studio_screen.dart';
+import 'screens/home_shell.dart';
 
 void main() {
   runApp(const ProductPhotoStudioApp());
@@ -18,7 +18,7 @@ class ProductPhotoStudioApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
       ),
-      home: const StudioScreen(),
+      home: const HomeShell(),
     );
   }
 }

@@ -19,7 +19,14 @@ from fastapi.responses import Response
 from PIL import Image, ImageFilter
 from rembg import remove
 
-from services import background_generation, background_removal, mask_utils, upscale_ai
+from services import (
+    background_generation,
+    background_removal,
+    mask_utils,
+    shadows,
+    upscale_ai,
+    virtual_tryon,
+)
 from services.fal_client import FalAPIError
 
 app = FastAPI(title="Product Photo AI Backend")
@@ -97,6 +104,21 @@ async def upscale(image: UploadFile = File(...), scale: int = 2) -> Response:
     return Response(content=output_bytes, media_type="image/png")
 
 
+@app.post("/shadows")
+async def add_shadow(image: UploadFile = File(...)) -> Response:
+    """Free, classical drop-shadow compositing (Pillow blur) -- not IC-Light.
+    See services/shadows.py docstring for why. `image` should be a cutout
+    PNG with transparency, e.g. from /remove-background."""
+    input_bytes = await _read_validated_image(image)
+
+    try:
+        output_bytes = shadows.add_drop_shadow(input_bytes)
+    except Exception as exc:  # noqa: BLE001 - surface a clean 500 to the client
+        raise HTTPException(status_code=500, detail=f"Shadow generation failed: {exc}") from exc
+
+    return Response(content=output_bytes, media_type="image/png")
+
+
 # ---------------------------------------------------------------------------
 # Paid fal.ai-backed endpoints for the Flutter studio app. See module
 # docstring: these require FAL_KEY and cost money per call.
@@ -166,3 +188,27 @@ async def ai_upscale(image: UploadFile = File(...), scale: int = 2) -> dict:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {"upscaled_url": upscaled_url}
+
+
+@app.post("/ai/virtual-tryon")
+async def ai_virtual_tryon(
+    garment_image: UploadFile = File(...),
+    garment_description: str = Form(...),
+    model_image: Optional[UploadFile] = File(default=None),
+) -> dict:
+    """Places `garment_image` (a clothing/jewelry cutout) onto an AI-generated
+    or, if provided, the supplied `model_image`. See services/virtual_tryon.py
+    for the model-ID verification caveat."""
+    garment_bytes = await _read_validated_image(garment_image)
+    model_bytes = (
+        await _read_validated_image(model_image) if model_image is not None else None
+    )
+
+    try:
+        result_url = virtual_tryon.try_on(
+            garment_bytes, garment_description, model_bytes, garment_image.content_type
+        )
+    except FalAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {"result_url": result_url}

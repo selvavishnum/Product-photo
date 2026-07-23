@@ -97,15 +97,17 @@ Still needed:
 **`app/` (native Android)**: Background Removal, Backdrop Select, and Photo
 Upscale are wired end-to-end and working.
 
-**`mobile/` (Flutter studio app)**: one screen wired to two paid fal.ai
-endpoints (background removal + AI studio backdrop generation). Not yet
-built: product shadows, AI model fitting/virtual try-on, AI upscaling,
-Firebase auth, credits, and payments — see `mobile/README.md`. Also not yet
-verified: this Dart code has never been compiled (no Flutter SDK in the
-sandbox it was written in) — the first real test is whatever CI reports
-on `.github/workflows/build-flutter-apk.yml`, and the fal.ai model IDs it
-depends on need to be checked against fal.ai's own catalog before use (see
-`backend/README.md`).
+**`mobile/` (Flutter studio app)**: a Photoroom-style bottom nav (Home / AI
+tools / Batch / Content). Home's studio flow covers 4 of the 5 original
+spec features end-to-end: Background Removal, AI Studio Backdrop
+generation, AI Upscale, and AI Shadows/Virtual Try-On (product shadows +
+model fitting), plus a full photo editor. Not yet built: Firebase auth,
+credits, payments, and the Batch/Content tabs (both show honest "Coming
+soon" placeholders) — see `mobile/README.md`. This Dart code has never been
+run on a real device (no Flutter SDK in the sandbox it was written in) —
+CI compiles it on every push, but on-device behavior of the AI features
+still needs verifying once `FAL_KEY` is set and the fal.ai model IDs are
+confirmed against fal.ai's own catalog (see `backend/README.md`).
 
 See `CLAUDE.md` for the gstack skill workflow this project uses, and
 `store-listing.md` for `app/`'s target feature set.

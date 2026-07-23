@@ -284,3 +284,72 @@ def test_ai_upscale_propagates_fal_error_as_502():
         )
 
     assert response.status_code == 502
+
+
+def test_shadows_returns_larger_png():
+    # No mocking -- add_drop_shadow() is classical Pillow compositing, not a
+    # downloaded model, so this exercises the real code path end to end.
+    source = io.BytesIO(_fake_cutout_bytes())
+
+    response = client.post(
+        "/shadows", files={"image": ("cutout.png", source, "image/png")}
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    result = Image.open(io.BytesIO(response.content))
+    assert result.size[0] > 10 and result.size[1] > 10
+
+
+def test_shadows_rejects_non_image_upload():
+    response = client.post(
+        "/shadows", files={"image": ("not-an-image.txt", b"hello world", "text/plain")}
+    )
+    assert response.status_code == 400
+
+
+def test_ai_virtual_tryon_returns_result_url():
+    source = io.BytesIO(_fake_cutout_bytes())
+
+    with patch(
+        "main.virtual_tryon.try_on",
+        return_value="https://fal.media/files/tryon-result.png",
+    ) as mock_try_on:
+        response = client.post(
+            "/ai/virtual-tryon",
+            files={"garment_image": ("garment.png", source, "image/png")},
+            data={"garment_description": "a gold necklace"},
+        )
+
+    assert mock_try_on.called
+    assert response.status_code == 200
+    assert response.json() == {"result_url": "https://fal.media/files/tryon-result.png"}
+    # model_image was omitted, so try_on should have been called with model_bytes=None.
+    assert mock_try_on.call_args.args[2] is None
+
+
+def test_ai_virtual_tryon_requires_garment_description():
+    source = io.BytesIO(_fake_cutout_bytes())
+
+    response = client.post(
+        "/ai/virtual-tryon",
+        files={"garment_image": ("garment.png", source, "image/png")},
+    )
+
+    assert response.status_code == 422  # FastAPI's required-field validation error
+
+
+def test_ai_virtual_tryon_propagates_fal_error_as_502():
+    source = io.BytesIO(_fake_cutout_bytes())
+
+    with patch(
+        "main.virtual_tryon.try_on",
+        side_effect=FalAPIError("fal.ai idm-vton job failed"),
+    ):
+        response = client.post(
+            "/ai/virtual-tryon",
+            files={"garment_image": ("garment.png", source, "image/png")},
+            data={"garment_description": "a denim jacket"},
+        )
+
+    assert response.status_code == 502
