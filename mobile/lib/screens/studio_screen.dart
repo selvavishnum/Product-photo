@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pro_image_editor/pro_image_editor.dart';
 
 import '../models/studio_theme.dart';
 import '../services/api_service.dart';
@@ -121,6 +122,43 @@ class _StudioScreenState extends State<StudioScreen> {
       setState(() => _upscaleError = e.toString());
     } finally {
       setState(() => _isUpscaling = false);
+    }
+  }
+
+  /// Opens the full pro_image_editor UI (crop/rotate, filters, tune, paint,
+  /// text, stickers) on the current image. PNG output is forced so editing
+  /// the cutout keeps its transparency -- /ai/generate-background derives
+  /// its inpainting mask from the alpha channel.
+  Future<void> _openEditor() async {
+    final current = _resultBytes ?? _cutoutBytes;
+    if (current == null) return;
+
+    final edited = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(
+        builder: (editorContext) => ProImageEditor.memory(
+          current,
+          configs: ProImageEditorConfigs(
+            imageGeneration: const ImageGenerationConfigs(
+              outputFormat: OutputFormat.png,
+            ),
+          ),
+          callbacks: ProImageEditorCallbacks(
+            onImageEditingComplete: (Uint8List bytes) async {
+              Navigator.of(editorContext).pop(bytes);
+            },
+          ),
+        ),
+      ),
+    );
+
+    if (edited != null && mounted) {
+      setState(() {
+        if (_stage == _Stage.done) {
+          _resultBytes = edited;
+        } else {
+          _cutoutBytes = edited;
+        }
+      });
     }
   }
 
@@ -247,6 +285,12 @@ class _StudioScreenState extends State<StudioScreen> {
                       )
                     : const Text('Generate Studio Shot'),
               ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _stage == _Stage.generating ? null : _openEditor,
+                icon: const Icon(Icons.tune),
+                label: const Text('Edit Photo'),
+              ),
               TextButton(onPressed: _reset, child: const Text('Start over')),
             ],
           ),
@@ -273,6 +317,12 @@ class _StudioScreenState extends State<StudioScreen> {
                   ),
                 ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isUpscaling ? null : _openEditor,
+                icon: const Icon(Icons.tune),
+                label: const Text('Edit Photo'),
+              ),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: _isUpscaling ? null : _upscale,
                 icon: const Icon(Icons.hd),
