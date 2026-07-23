@@ -13,31 +13,48 @@ separate decision for later.
 
 ## What's here vs. what's not
 
-Delivered in this folder: the main studio screen (pick photo → remove
-background → pick a theme or type a custom prompt → generate studio
-backdrop → preview), an "AI Upscale (paid)" option on the result, and a
-full photo editor ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
-crop/rotate, filters, tune/adjust, blur, paint, text, stickers) reachable
-from both the cutout and final-result screens. Editor output is forced to
-PNG so an edited cutout keeps the transparency the backdrop generator's
-mask derivation depends on.
+The app opens into a Photoroom-style bottom nav (`screens/home_shell.dart`):
+**Home**, **AI tools**, **Batch**, **Content**.
+
+- **Home** — the studio flow: pick photo → remove background → pick a theme
+  or type a custom prompt → generate studio backdrop → preview, plus
+  "AI Upscale (paid)" and a full photo editor
+  ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
+  crop/rotate, filters, tune/adjust, blur, paint, text, stickers) reachable
+  from both the cutout and final-result screens. Editor output is forced to
+  PNG so an edited cutout keeps the transparency the backdrop generator's
+  mask derivation depends on.
+- **AI tools** — a menu into the same Home flow (tapping a tile switches
+  back to Home), plus two honestly-disabled tiles (AI Shadows, AI Fashion
+  Models) for features not built yet — not faked as working buttons.
+- **Batch** and **Content** — honest "Coming soon" placeholders
+  (`screens/batch_screen.dart`, `screens/content_screen.dart`). Batch
+  (multi-image processing) and Content (sign-in + saved designs, needs
+  Firebase Auth/Storage) are real, separate pieces of work, not built yet.
 
 **Not yet built** (from the fuller product spec): product shadow
-generation, AI model fitting/virtual try-on, AI-based upscaling, Firebase
-auth, the credit/subscription system, and payments (Razorpay/Play Billing).
-Those are real, separate pieces of work — see the root `README.md`'s
-project status for what's actually live.
+generation, AI model fitting/virtual try-on, Firebase auth, the
+credit/subscription system, and payments (Razorpay/Play Billing). Those are
+real, separate pieces of work — see the root `README.md`'s project status
+for what's actually live.
 
 ## Structure
 
 ```
 mobile/
 ├── lib/
-│   ├── main.dart                    # App entry point, theme
-│   ├── screens/studio_screen.dart   # The main (only) screen
-│   ├── services/api_service.dart    # HTTP calls to backend /ai/* endpoints
-│   ├── models/studio_theme.dart     # Studio theme preset model
-│   └── widgets/theme_selector.dart  # Theme picker chips
+│   ├── main.dart                       # App entry point, theme
+│   ├── screens/
+│   │   ├── home_shell.dart             # Bottom-nav shell (4 tabs)
+│   │   ├── studio_screen.dart          # Home tab: the studio flow
+│   │   ├── ai_tools_screen.dart        # AI tools tab: menu into Home
+│   │   ├── batch_screen.dart           # Batch tab: "Coming soon"
+│   │   └── content_screen.dart         # Content tab: "Coming soon"
+│   ├── services/api_service.dart       # HTTP calls to backend /ai/* endpoints
+│   ├── models/studio_theme.dart        # Studio theme preset model
+│   └── widgets/
+│       ├── theme_selector.dart         # Theme picker chips
+│       └── coming_soon.dart            # Shared "not built yet" placeholder
 ├── pubspec.yaml
 └── analysis_options.yaml
 ```
