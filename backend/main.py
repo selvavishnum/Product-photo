@@ -40,22 +40,52 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-async def _read_validated_image(image: UploadFile) -> bytes:
-    if image.content_type is None or not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+_FORMAT_TO_MIME = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+    "BMP": "image/bmp",
+    "TIFF": "image/tiff",
+}
 
+
+async def _read_validated_image(image: UploadFile) -> tuple[bytes, str]:
+    """Reads and validates an upload, returning (bytes, content_type).
+
+    Mobile multipart clients don't reliably set an image/* Content-Type per
+    part -- e.g. Flutter's `http.MultipartFile.fromPath` falls back to
+    application/octet-stream whenever it can't infer a type from the file's
+    extension (temp files from image pickers often have none, or an
+    extension like .heic/.webp outside its small built-in map). Rejecting on
+    the declared type alone bounces real images, so sniff the actual bytes
+    with Pillow before giving up.
+    """
     input_bytes = await image.read()
-    if len(input_bytes) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Image too large (max 15MB)")
     if not input_bytes:
         raise HTTPException(status_code=400, detail="Empty file")
+    if len(input_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large (max 15MB)")
 
-    return input_bytes
+    content_type = image.content_type
+    if content_type is None or not content_type.startswith("image/"):
+        sniffed_format = None
+        try:
+            with Image.open(io.BytesIO(input_bytes)) as img:
+                sniffed_format = img.format
+                img.verify()
+        except Exception:
+            sniffed_format = None
+        if sniffed_format is None:
+            raise HTTPException(status_code=400, detail="File must be an image")
+        content_type = _FORMAT_TO_MIME.get(sniffed_format, "image/png")
+
+    return input_bytes, content_type
 
 
 @app.post("/remove-background")
 async def remove_background(image: UploadFile = File(...)) -> Response:
-    input_bytes = await _read_validated_image(image)
+    input_bytes, _ = await _read_validated_image(image)
 
     try:
         output_bytes = remove(input_bytes)
@@ -94,7 +124,7 @@ async def upscale(image: UploadFile = File(...), scale: int = 2) -> Response:
             status_code=400, detail=f"scale must be between 1 and {MAX_UPSCALE_FACTOR}"
         )
 
-    input_bytes = await _read_validated_image(image)
+    input_bytes, _ = await _read_validated_image(image)
 
     try:
         output_bytes = upscale_image(input_bytes, scale)
@@ -109,7 +139,7 @@ async def add_shadow(image: UploadFile = File(...)) -> Response:
     """Free, classical drop-shadow compositing (Pillow blur) -- not IC-Light.
     See services/shadows.py docstring for why. `image` should be a cutout
     PNG with transparency, e.g. from /remove-background."""
-    input_bytes = await _read_validated_image(image)
+    input_bytes, _ = await _read_validated_image(image)
 
     try:
         output_bytes = shadows.add_drop_shadow(input_bytes)
@@ -132,10 +162,10 @@ def list_studio_themes() -> dict:
 
 @app.post("/ai/remove-background")
 async def ai_remove_background(image: UploadFile = File(...)) -> dict:
-    input_bytes = await _read_validated_image(image)
+    input_bytes, content_type = await _read_validated_image(image)
 
     try:
-        cutout_url = background_removal.remove_background(input_bytes, image.content_type)
+        cutout_url = background_removal.remove_background(input_bytes, content_type)
     except FalAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -152,7 +182,7 @@ async def ai_generate_background(
     /ai/remove-background) -- the regeneration mask is derived from its
     alpha channel, so no separate mask upload is required.
     """
-    cutout_bytes = await _read_validated_image(image)
+    cutout_bytes, content_type = await _read_validated_image(image)
 
     try:
         final_prompt = background_generation.resolve_prompt(theme_key, prompt)
@@ -163,7 +193,7 @@ async def ai_generate_background(
 
     try:
         generated_url = background_generation.generate_background(
-            cutout_bytes, mask_bytes, final_prompt, image.content_type
+            cutout_bytes, mask_bytes, final_prompt, content_type
         )
     except FalAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -180,10 +210,10 @@ async def ai_upscale(image: UploadFile = File(...), scale: int = 2) -> dict:
             status_code=400, detail=f"scale must be between 1 and {MAX_UPSCALE_FACTOR}"
         )
 
-    input_bytes = await _read_validated_image(image)
+    input_bytes, content_type = await _read_validated_image(image)
 
     try:
-        upscaled_url = upscale_ai.upscale_with_ai(input_bytes, scale, image.content_type)
+        upscaled_url = upscale_ai.upscale_with_ai(input_bytes, scale, content_type)
     except FalAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -199,14 +229,14 @@ async def ai_virtual_tryon(
     """Places `garment_image` (a clothing/jewelry cutout) onto an AI-generated
     or, if provided, the supplied `model_image`. See services/virtual_tryon.py
     for the model-ID verification caveat."""
-    garment_bytes = await _read_validated_image(garment_image)
-    model_bytes = (
-        await _read_validated_image(model_image) if model_image is not None else None
-    )
+    garment_bytes, garment_content_type = await _read_validated_image(garment_image)
+    model_bytes = None
+    if model_image is not None:
+        model_bytes, _ = await _read_validated_image(model_image)
 
     try:
         result_url = virtual_tryon.try_on(
-            garment_bytes, garment_description, model_bytes, garment_image.content_type
+            garment_bytes, garment_description, model_bytes, garment_content_type
         )
     except FalAPIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
