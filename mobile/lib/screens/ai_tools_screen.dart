@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'white_background_screen.dart';
+
 /// Grid/list of AI tools, matching Photoroom's "AI tools" tab shape.
-/// Tapping a tile switches back to the Home tab, since they're all steps of
-/// the one studio flow there -- not separate implementations.
+/// Most tiles switch back to the Home tab, since they're all steps of the one
+/// studio flow there -- not separate implementations. "White background" is
+/// the exception: it is a self-contained on-device flow with no backend call,
+/// so it gets its own screen.
 class AiToolsScreen extends StatelessWidget {
   const AiToolsScreen({super.key, required this.onOpenStudio});
 
@@ -15,6 +19,16 @@ class AiToolsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _ToolTile(
+            icon: Icons.storefront_outlined,
+            title: 'White background',
+            subtitle: 'Listing photos for Amazon / Flipkart - free, on-device',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const WhiteBackgroundScreen(),
+              ),
+            ),
+          ),
           _ToolTile(
             icon: Icons.cut,
             title: 'Background Remover',
