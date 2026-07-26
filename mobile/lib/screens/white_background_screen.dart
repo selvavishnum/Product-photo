@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../ondevice/backdrops.dart';
 import '../ondevice/fallback_engine.dart';
 import '../ondevice/framing.dart';
 import '../ondevice/pipeline.dart';
@@ -35,6 +36,7 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
   XFile? _source;
   Uint8List? _result;
   MarketplacePreset _preset = MarketplacePreset.amazon;
+  BackdropStyle _backdrop = BackdropStyle.none;
   PipelineStage? _stage;
   String? _error;
 
@@ -74,6 +76,7 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
       final out = await _pipeline.run(
         imageBytes: bytes,
         preset: _preset,
+        backdrop: _backdrop,
         onStage: (s) {
           if (mounted) setState(() => _stage = s);
         },
@@ -150,6 +153,15 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
                 if (_source != null) _process();
               },
             ),
+            const SizedBox(height: 10),
+            _BackdropPicker(
+              selected: _backdrop,
+              enabled: _stage == null,
+              onChanged: (b) {
+                setState(() => _backdrop = b);
+                if (_source != null) _process();
+              },
+            ),
             const SizedBox(height: 16),
             Expanded(child: _buildBody(context)),
             const SizedBox(height: 16),
@@ -219,7 +231,8 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
         const SizedBox(height: 12),
         Text(
           '${_preset.name} - ${_preset.size}x${_preset.size}px, '
-          'pure white, product at ${(_preset.fill * 100).round()}% of frame',
+          '${_backdrop.isPlainWhite ? "pure white" : _backdrop.name.toLowerCase()}, '
+          'product at ${(_preset.fill * 100).round()}% of frame',
           style: Theme.of(context).textTheme.bodySmall,
           textAlign: TextAlign.center,
         ),
@@ -292,6 +305,58 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BackdropPicker extends StatelessWidget {
+  const _BackdropPicker({
+    required this.selected,
+    required this.onChanged,
+    required this.enabled,
+  });
+
+  final BackdropStyle selected;
+  final ValueChanged<BackdropStyle> onChanged;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        for (final b in BackdropStyle.all)
+          ChoiceChip(
+            avatar: b.isPlainWhite ? null : _Swatch(style: b),
+            label: Text(b.name),
+            selected: b.name == selected.name,
+            onSelected: enabled ? (_) => onChanged(b) : null,
+          ),
+      ],
+    );
+  }
+}
+
+/// Tiny gradient dot so the chips are distinguishable at a glance.
+class _Swatch extends StatelessWidget {
+  const _Swatch({required this.style});
+
+  final BackdropStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF000000 | style.top), Color(0xFF000000 | style.bottom)],
+        ),
       ),
     );
   }

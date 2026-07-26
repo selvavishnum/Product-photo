@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
+import 'backdrops.dart';
 import 'framing.dart';
 import 'matting.dart';
 import 'segmentation_engine.dart';
@@ -32,6 +33,7 @@ class OnDevicePipeline {
   Future<Uint8List> run({
     required Uint8List imageBytes,
     MarketplacePreset preset = MarketplacePreset.amazon,
+    BackdropStyle backdrop = BackdropStyle.none,
     void Function(PipelineStage stage)? onStage,
   }) async {
     final prepared = await _prepare(imageBytes, onStage);
@@ -49,6 +51,7 @@ class OnDevicePipeline {
         width: seg.width,
         height: seg.height,
         preset: preset,
+        backdrop: backdrop,
       );
       return Framing.encodeJpeg(framed);
     });
