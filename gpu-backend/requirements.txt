@@ -1,0 +1,21 @@
+# Install torch FIRST, from the CUDA index matching your GPU host:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# Pinning it here would silently pull the CPU-only build on some hosts.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pillow==11.1.0
+
+# Diffusion + segmentation. The diffusers API used in main.py was verified
+# against 0.39.0; older versions lack AutoPipelineForInpainting's Flux support.
+diffusers>=0.39.0
+transformers>=4.45.0
+accelerate>=1.2.0
+safetensors>=0.4.5
+sentencepiece>=0.2.0
+protobuf>=5.28.0
+
+# Real-ESRGAN: not on PyPI under a maintained name. See README.md -- install
+# from source, or drop the /api/v1/upscale endpoint (you probably do not
+# need it).
