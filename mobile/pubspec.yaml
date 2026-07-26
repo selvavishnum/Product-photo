@@ -4,17 +4,33 @@ publish_to: "none"
 version: 0.1.0+1
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
+  # Raised from 3.3.0 for google_mlkit_subject_segmentation, which requires
+  # Dart >=3.8.0 / Flutter >=3.32.0. CI tracks the stable channel, which is
+  # well past both.
+  sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.1
   image_picker: ^1.1.2
-  # Full photo editor (crop/rotate, filters, tune, paint, text, stickers).
-  # Version + API verified against the real package source downloaded from
-  # pub.dev (reachable from this sandbox, unlike most registries).
+  # Full photo editor (crop/rotate, filters, tune/adjust, blur, paint, text,
+  # stickers). Version + API verified against the real package source
+  # downloaded from pub.dev (reachable from this sandbox, unlike most
+  # registries).
   pro_image_editor: ^13.2.2
+  # On-device background removal. The model ships via Google Play Services,
+  # so it costs nothing in APK size and nothing per image -- unlike the
+  # /ai/* backend endpoints, which bill fal.ai on every call.
+  #
+  # ANDROID ONLY in practice: the plugin's iOS half is a stub that returns
+  # FlutterMethodNotImplemented and its podspec has the ML Kit dependency
+  # commented out. Verified by reading the published package source, not
+  # assumed -- see lib/ondevice/segmentation_engine.dart.
+  google_mlkit_subject_segmentation: ^0.1.0
+  google_mlkit_commons: ^0.12.0
+  # Pure-Dart decode/resize/composite/encode for the post-processing stages.
+  image: ^4.9.1
 
 dev_dependencies:
   flutter_test:
