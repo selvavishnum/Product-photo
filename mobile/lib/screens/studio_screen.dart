@@ -6,6 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 
 import '../models/studio_theme.dart';
+import '../ondevice/fallback_engine.dart';
+import '../ondevice/pipeline.dart';
+import '../ondevice/segmentation_engine.dart';
 import '../services/api_service.dart';
 import '../widgets/theme_selector.dart';
 
@@ -22,6 +25,12 @@ class _StudioScreenState extends State<StudioScreen> {
   final ApiService _api = ApiService();
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _promptController = TextEditingController();
+
+  // Background removal runs on the phone now. Only backdrop generation,
+  // upscale and try-on below still call the paid backend.
+  late final OnDevicePipeline _pipeline = OnDevicePipeline(
+    FallbackSegmentationEngine.defaults(mlKit: MlKitSegmentationEngine()),
+  );
 
   _Stage _stage = _Stage.picking;
   Uint8List? _cutoutBytes;
@@ -45,6 +54,7 @@ class _StudioScreenState extends State<StudioScreen> {
   @override
   void dispose() {
     _promptController.dispose();
+    _pipeline.dispose();
     super.dispose();
   }
 
@@ -68,7 +78,13 @@ class _StudioScreenState extends State<StudioScreen> {
     });
 
     try {
-      final cutout = await _api.removeBackground(File(picked.path));
+      // Cut out on the phone rather than through /ai/remove-background.
+      // The paid endpoint costs money per image and dies outright when the
+      // fal.ai balance runs out; this one is free, works offline, and is the
+      // same engine the White background screen uses.
+      final cutout = await _pipeline.cutout(
+        imageBytes: await File(picked.path).readAsBytes(),
+      );
       setState(() {
         _cutoutBytes = cutout;
         _stage = _Stage.readyForBackdrop;

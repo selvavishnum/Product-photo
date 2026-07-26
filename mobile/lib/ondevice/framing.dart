@@ -165,6 +165,51 @@ class Framing {
     img.compositeImage(canvas, shadow);
   }
 
+  /// The cut-out product on transparency, cropped to its bounding box.
+  ///
+  /// For callers that want to composite onto something other than white --
+  /// a generated backdrop, say -- without paying for a second, cloud-side
+  /// background removal.
+  static img.Image toTransparentCutout({
+    required Uint8List rgb,
+    required Float32List alpha,
+    required int width,
+    required int height,
+  }) {
+    var minX = width, minY = height, maxX = -1, maxY = -1;
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        if (alpha[y * width + x] > 0.02) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) {
+      throw StateError('Nothing detected in the photo.');
+    }
+
+    final w = maxX - minX + 1;
+    final h = maxY - minY + 1;
+    final out = img.Image(width: w, height: h, numChannels: 4);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        final si = (y + minY) * width + (x + minX);
+        out.setPixelRgba(
+          x,
+          y,
+          rgb[si * 3],
+          rgb[si * 3 + 1],
+          rgb[si * 3 + 2],
+          (alpha[si] * 255).round().clamp(0, 255),
+        );
+      }
+    }
+    return out;
+  }
+
   /// Encode as JPEG at a quality high enough that marketplace re-compression
   /// does not visibly damage fine detail like chains or engraving.
   static Uint8List encodeJpeg(img.Image image) =>
