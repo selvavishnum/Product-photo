@@ -29,6 +29,11 @@ dependencies:
   # assumed -- see lib/ondevice/segmentation_engine.dart.
   google_mlkit_subject_segmentation: ^0.1.0
   google_mlkit_commons: ^0.12.0
+  # Runs the bundled u2netp model (assets/models/u2netp.onnx) so background
+  # removal still works with no Play Services, on a fresh install before the
+  # ML Kit model has downloaded, and on iOS -- where the ML Kit plugin above
+  # is only a stub. API verified against the published package source.
+  onnxruntime: ^1.4.1
   # Pure-Dart decode/resize/composite/encode for the post-processing stages.
   image: ^4.9.1
 
@@ -39,3 +44,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # u2netp, 4.4 MB. Bundled deliberately rather than downloaded on first
+    # run: a download would reintroduce exactly the network dependency and
+    # first-run failure this engine exists to remove.
+    - assets/models/u2netp.onnx

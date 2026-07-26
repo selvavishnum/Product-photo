@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../ondevice/fallback_engine.dart';
 import '../ondevice/framing.dart';
 import '../ondevice/pipeline.dart';
 import '../ondevice/segmentation_engine.dart';
@@ -23,8 +24,13 @@ class WhiteBackgroundScreen extends StatefulWidget {
 
 class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
   final _picker = ImagePicker();
-  late final OnDevicePipeline _pipeline =
-      OnDevicePipeline(MlKitSegmentationEngine());
+
+  // ML Kit when it's ready, the bundled model otherwise. The chain is why a
+  // fresh install no longer fails while Play Services fetches its model: that
+  // path now falls through to the bundled engine instead of erroring.
+  late final OnDevicePipeline _pipeline = OnDevicePipeline(
+    FallbackSegmentationEngine.defaults(mlKit: MlKitSegmentationEngine()),
+  );
 
   XFile? _source;
   Uint8List? _result;
@@ -77,15 +83,6 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
         _result = out;
         _stage = null;
       });
-    } on ModelDownloading {
-      if (!mounted) return;
-      setState(() {
-        _stage = null;
-        _error =
-            'Google Play Services is still downloading the background-removal '
-            'model.\n\nThis happens once, on the first run. Stay connected for '
-            'a minute, then tap Try again -- your photo is fine.';
-      });
     } on SegmentationSizeMismatch catch (e) {
       // Our bug, not the device's -- say so rather than blaming the network.
       if (!mounted) return;
@@ -96,10 +93,13 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
             'photo. Details: $e';
       });
     } on SegmentationUnavailable catch (e) {
+      // Reached only when *every* engine failed, including the bundled one --
+      // which should not normally be possible, since it needs nothing from
+      // the device beyond the asset shipped in the APK.
       if (!mounted) return;
       setState(() {
         _stage = null;
-        _error = "The on-device model isn't available on this phone: $e";
+        _error = "Couldn't remove the background on this phone.\n\n$e";
       });
     } catch (e) {
       if (!mounted) return;
