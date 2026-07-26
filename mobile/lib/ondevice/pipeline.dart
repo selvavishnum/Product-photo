@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -28,7 +29,6 @@ class OnDevicePipeline {
   static const int _workingEdge = 2048;
 
   Future<Uint8List> run({
-    required String imagePath,
     required Uint8List imageBytes,
     MarketplacePreset preset = MarketplacePreset.amazon,
     void Function(PipelineStage stage)? onStage,
@@ -42,9 +42,35 @@ class OnDevicePipeline {
     final oriented = img.bakeOrientation(decoded);
     final working = _downscale(oriented, _workingEdge);
 
+    // The segmenter must be given *this* bitmap, not the original file.
+    //
+    // Passing the original path meant ML Kit segmented the full-resolution
+    // photo and returned a mask with one value per original pixel, while
+    // everything downstream indexes the downscaled copy -- so a 3000x2000
+    // photo produced a 6,000,000-value mask for a 2048x1365 image and the
+    // run aborted. Writing the working bitmap out and segmenting that makes
+    // the two agree by construction.
+    //
+    // It also removes an EXIF ambiguity: orientation is already baked in
+    // here, and a re-encoded JPEG carries no EXIF for ML Kit to re-apply.
     onStage?.call(PipelineStage.segmenting);
-    // Must stay on the root isolate: ML Kit is a platform channel call.
-    final seg = await _engine.segment(imagePath, working.width, working.height);
+    final tempDir = await Directory.systemTemp.createTemp('seg');
+    final workingFile = File('${tempDir.path}/working.jpg');
+    final SegmentationResult seg;
+    try {
+      await workingFile.writeAsBytes(img.encodeJpg(working, quality: 92));
+      // Must stay on the root isolate: ML Kit is a platform channel call.
+      seg = await _engine.segment(
+        workingFile.path,
+        working.width,
+        working.height,
+      );
+    } finally {
+      // Best-effort: a leftover temp file must never fail the whole run.
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    }
 
     onStage?.call(PipelineStage.refining);
     final rgb = _toRgbBytes(working);

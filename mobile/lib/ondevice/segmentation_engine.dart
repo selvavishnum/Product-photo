@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 import 'package:google_mlkit_subject_segmentation/google_mlkit_subject_segmentation.dart';
 
@@ -62,20 +63,38 @@ class MlKitSegmentationEngine implements SegmentationEngine {
 
   @override
   Future<SegmentationResult> segment(String imagePath, int width, int height) async {
-    final result = await _segmenter.processImage(
-      InputImage.fromFilePath(imagePath),
-    );
+    final SubjectSegmentationResult result;
+    try {
+      result = await _segmenter.processImage(
+        InputImage.fromFilePath(imagePath),
+      );
+    } on PlatformException catch (e) {
+      // ML Kit reports the Play Services model download as a generic
+      // PlatformException, so it has to be recognised by message rather than
+      // by type. Without this it surfaced to the user as a raw Java stack
+      // trace, which is both useless and alarming.
+      final detail = '${e.message ?? ''} ${e.details ?? ''}';
+      if (detail.contains('optional module') ||
+          detail.contains('to be downloaded') ||
+          detail.contains('Waiting for')) {
+        throw const ModelDownloading();
+      }
+      rethrow;
+    }
 
     final mask = result.foregroundConfidenceMask;
     if (mask == null || mask.isEmpty) {
-      throw const SegmentationUnavailable(
-        'ML Kit returned no mask -- the Play Services model is probably still '
-        'downloading.',
-      );
+      // An empty mask is the other way the not-yet-downloaded model shows up.
+      throw const ModelDownloading();
     }
     if (mask.length != width * height) {
-      throw SegmentationUnavailable(
-        'Mask size ${mask.length} does not match image ${width}x$height.',
+      // Not a Play Services problem -- this means the bitmap ML Kit read is
+      // not the one the rest of the pipeline is working on. Kept as a real
+      // error rather than a fallback so the mismatch can't pass silently.
+      throw SegmentationSizeMismatch(
+        maskLength: mask.length,
+        width: width,
+        height: height,
       );
     }
 
@@ -98,4 +117,37 @@ class SegmentationUnavailable implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Play Services has not finished fetching the ML Kit model yet.
+///
+/// Distinct from the other failures because it is **temporary and not the
+/// user's fault** -- the same photo will work in a minute -- so the UI should
+/// say "wait", not "error".
+class ModelDownloading extends SegmentationUnavailable {
+  const ModelDownloading()
+      : super(
+          'The on-device model is still downloading in the background.',
+        );
+}
+
+/// The mask does not describe the image the pipeline is processing.
+///
+/// Always a bug on our side, not a device problem: it means the bitmap handed
+/// to ML Kit and the one being post-processed have different dimensions.
+class SegmentationSizeMismatch implements Exception {
+  const SegmentationSizeMismatch({
+    required this.maskLength,
+    required this.width,
+    required this.height,
+  });
+
+  final int maskLength;
+  final int width;
+  final int height;
+
+  @override
+  String toString() =>
+      'Mask has $maskLength values but the image is ${width}x$height '
+      '(${width * height}).';
 }
