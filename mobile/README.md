@@ -16,17 +16,24 @@ separate decision for later.
 The app opens into a Photoroom-style bottom nav (`screens/home_shell.dart`):
 **Home**, **AI tools**, **Batch**, **Content**.
 
-- **Home** — the studio flow: pick photo → remove background → pick a theme
-  or type a custom prompt → generate studio backdrop → preview, plus on the
-  result: "AI Upscale (paid)", "Add Shadow" (free, classical drop shadow),
-  "Virtual Try-On (paid)" (asks for a garment description, then places it on
-  an AI model), and a full photo editor
-  ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
+- **Home** — **White background**: pick a photo, get a marketplace-ready
+  listing image (pure white, product at 85% of frame, Amazon/Flipkart/Studio
+  presets). Runs **entirely on the phone** — free, works offline, and no
+  photo leaves the device. See `docs/on-device-architecture.md`.
+- **AI tools** — White background plus the studio flow: pick a theme or type
+  a prompt → generate a studio backdrop → preview, with "AI Upscale (paid)",
+  "Add Shadow" (free, classical), "Virtual Try-On (paid)", and a full photo
+  editor ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
   crop/rotate, filters, tune/adjust, blur, paint, text, stickers). Editor
   output is forced to PNG so an edited cutout keeps the transparency the
   backdrop generator's mask derivation depends on.
-- **AI tools** — a menu into the same Home flow; every tile is available
-  (tapping any of them switches back to Home).
+
+**Background removal is on-device everywhere.** The paid
+`/ai/remove-background` endpoint is no longer called from this app: it cost
+money per image and stopped working outright once the fal.ai balance ran out
+(`403 User is locked. Reason: Exhausted balance.`). The studio flow now feeds
+the on-device cutout straight into backdrop generation, so the only calls
+that still need fal.ai credit are backdrop, upscale and try-on.
 - **Batch** and **Content** — honest "Coming soon" placeholders
   (`screens/batch_screen.dart`, `screens/content_screen.dart`). Batch
   (multi-image processing) and Content (sign-in + saved designs, needs

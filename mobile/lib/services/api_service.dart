@@ -24,17 +24,12 @@ class ApiService {
     return List<String>.from(body['themes'] as List);
   }
 
-  /// Uploads [imageFile], returns the cutout's decoded bytes.
-  Future<Uint8List> removeBackground(File imageFile) async {
-    final cutoutUrl = await _postImageForUrl(
-      endpoint: '/ai/remove-background',
-      responseKey: 'cutout_url',
-      imageFile: imageFile,
-    );
-    return _downloadBytes(cutoutUrl);
-  }
+  // The paid /ai/remove-background call used to live here. Background
+  // removal now runs on the phone (lib/ondevice/) -- it is free, works
+  // offline, and does not stop working when the fal.ai balance runs out,
+  // which is exactly what happened to this endpoint in practice.
 
-  /// Re-uploads [cutoutBytes] (from [removeBackground]) with either a preset
+  /// Uploads a cut-out PNG (from the on-device pipeline) with either a preset
   /// [themeKey] or a [customPrompt] -- exactly one should be non-null.
   Future<Uint8List> generateBackground({
     required Uint8List cutoutBytes,

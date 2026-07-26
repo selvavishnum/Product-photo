@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'ai_tools_screen.dart';
 import 'batch_screen.dart';
 import 'content_screen.dart';
-import 'studio_screen.dart';
+import 'white_background_screen.dart';
 
 /// Bottom-nav shell matching Photoroom's tab layout (Home / AI tools /
 /// Batch / Content). Only Home (the studio flow) and AI tools (a menu into
@@ -19,13 +19,14 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
-  void _goToStudio() => setState(() => _selectedIndex = 0);
 
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      const StudioScreen(),
-      AiToolsScreen(onOpenStudio: _goToStudio),
+      // Home leads with the on-device flow: it is free, works offline, and
+      // keeps working when the paid backend does not.
+      const WhiteBackgroundScreen(),
+      const AiToolsScreen(),
       const BatchScreen(),
       const ContentScreen(),
     ];

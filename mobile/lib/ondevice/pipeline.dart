@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
+import 'backdrops.dart';
 import 'framing.dart';
 import 'matting.dart';
 import 'segmentation_engine.dart';
@@ -11,11 +12,11 @@ import 'segmentation_engine.dart';
 /// One stage of the pipeline, for progress reporting.
 enum PipelineStage { decoding, segmenting, refining, composing, encoding, done }
 
-/// Runs the whole on-device flow: photo in, marketplace-ready JPEG out.
+/// Runs the whole on-device flow: photo in, marketplace-ready image out.
 ///
-/// No network call anywhere in here. That is the design constraint: the
-/// backend's `/ai/*` endpoints cost money per image and need a live server,
-/// which is the wrong shape for a seller batch-editing a hundred listings.
+/// No network call anywhere in here. That is the design constraint, and it is
+/// why this path keeps working when the paid backend does not -- a fal.ai
+/// balance running out takes the `/ai/*` endpoints down, but not this.
 class OnDevicePipeline {
   OnDevicePipeline(this._engine);
 
@@ -28,11 +29,73 @@ class OnDevicePipeline {
   /// full resolution afterwards, which is where it actually matters.
   static const int _workingEdge = 2048;
 
+  /// Cut out the product and place it on a white marketplace-ready canvas.
   Future<Uint8List> run({
     required Uint8List imageBytes,
     MarketplacePreset preset = MarketplacePreset.amazon,
+    BackdropStyle backdrop = BackdropStyle.none,
     void Function(PipelineStage stage)? onStage,
   }) async {
+    final prepared = await _prepare(imageBytes, onStage);
+
+    onStage?.call(PipelineStage.refining);
+    final rgb = prepared.rgb;
+    final seg = prepared.seg;
+
+    final jpeg = await Isolate.run(() {
+      final refined = Matting.refineAlpha(rgb, seg.alpha, seg.width, seg.height);
+      final clean = Matting.decontaminate(rgb, refined, seg.width, seg.height);
+      final framed = Framing.composeAndFrame(
+        rgb: clean,
+        alpha: refined,
+        width: seg.width,
+        height: seg.height,
+        preset: preset,
+        backdrop: backdrop,
+      );
+      return Framing.encodeJpeg(framed);
+    });
+
+    onStage?.call(PipelineStage.done);
+    return jpeg;
+  }
+
+  /// Cut out the product and return a transparent PNG, cropped to it.
+  ///
+  /// Same work as [run] minus the white canvas, for callers that want to put
+  /// the product on something other than white -- the studio backdrop flow
+  /// uses this so it never needs the paid background-removal endpoint.
+  Future<Uint8List> cutout({
+    required Uint8List imageBytes,
+    void Function(PipelineStage stage)? onStage,
+  }) async {
+    final prepared = await _prepare(imageBytes, onStage);
+
+    onStage?.call(PipelineStage.refining);
+    final rgb = prepared.rgb;
+    final seg = prepared.seg;
+
+    final png = await Isolate.run(() {
+      final refined = Matting.refineAlpha(rgb, seg.alpha, seg.width, seg.height);
+      final clean = Matting.decontaminate(rgb, refined, seg.width, seg.height);
+      return Framing.encodePng(
+        Framing.toTransparentCutout(
+          rgb: clean,
+          alpha: refined,
+          width: seg.width,
+          height: seg.height,
+        ),
+      );
+    });
+
+    onStage?.call(PipelineStage.done);
+    return png;
+  }
+
+  Future<_Prepared> _prepare(
+    Uint8List imageBytes,
+    void Function(PipelineStage stage)? onStage,
+  ) async {
     onStage?.call(PipelineStage.decoding);
     final decoded = img.decodeImage(imageBytes);
     if (decoded == null) {
@@ -72,27 +135,7 @@ class OnDevicePipeline {
       } catch (_) {}
     }
 
-    onStage?.call(PipelineStage.refining);
-    final rgb = _toRgbBytes(working);
-
-    // Everything below is pure CPU maths on byte arrays, so it goes to a
-    // background isolate -- otherwise the UI drops frames for seconds on a
-    // mid-range phone.
-    final jpeg = await Isolate.run(() {
-      final refined = Matting.refineAlpha(rgb, seg.alpha, seg.width, seg.height);
-      final clean = Matting.decontaminate(rgb, refined, seg.width, seg.height);
-      final framed = Framing.composeAndFrame(
-        rgb: clean,
-        alpha: refined,
-        width: seg.width,
-        height: seg.height,
-        preset: preset,
-      );
-      return Framing.encodeJpeg(framed);
-    });
-
-    onStage?.call(PipelineStage.done);
-    return jpeg;
+    return _Prepared(_toRgbBytes(working), seg);
   }
 
   static img.Image _downscale(img.Image src, int maxEdge) {
@@ -122,4 +165,10 @@ class OnDevicePipeline {
   }
 
   Future<void> dispose() => _engine.dispose();
+}
+
+class _Prepared {
+  const _Prepared(this.rgb, this.seg);
+  final Uint8List rgb;
+  final SegmentationResult seg;
 }

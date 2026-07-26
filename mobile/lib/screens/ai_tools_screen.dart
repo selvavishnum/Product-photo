@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 
+import 'studio_screen.dart';
 import 'white_background_screen.dart';
 
-/// Grid/list of AI tools, matching Photoroom's "AI tools" tab shape.
-/// Most tiles switch back to the Home tab, since they're all steps of the one
-/// studio flow there -- not separate implementations. "White background" is
-/// the exception: it is a self-contained on-device flow with no backend call,
-/// so it gets its own screen.
+/// Grid/list of tools, matching Photoroom's "AI tools" tab shape.
+///
+/// Both destinations are pushed as full screens rather than switching tabs.
+/// They used to jump to the Home tab, which broke once Home became the
+/// White background flow -- every tile would have opened the same screen.
 class AiToolsScreen extends StatelessWidget {
-  const AiToolsScreen({super.key, required this.onOpenStudio});
-
-  final VoidCallback onOpenStudio;
+  const AiToolsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    void open(Widget screen) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => screen),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('AI tools')),
       body: ListView(
@@ -22,48 +27,38 @@ class AiToolsScreen extends StatelessWidget {
           _ToolTile(
             icon: Icons.storefront_outlined,
             title: 'White background',
-            subtitle: 'Listing photos for Amazon / Flipkart - free, on-device',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const WhiteBackgroundScreen(),
-              ),
-            ),
-          ),
-          _ToolTile(
-            icon: Icons.cut,
-            title: 'Background Remover',
-            subtitle: 'Cut out your product',
-            onTap: onOpenStudio,
+            subtitle: 'Cut out your product, put it on white - free, offline',
+            onTap: () => open(const WhiteBackgroundScreen()),
           ),
           _ToolTile(
             icon: Icons.landscape,
             title: 'AI Studio Backdrop',
-            subtitle: 'Generate a studio background from a theme or prompt',
-            onTap: onOpenStudio,
+            subtitle: 'Backdrop from a theme or prompt - paid, needs credit',
+            onTap: () => open(const StudioScreen()),
           ),
           _ToolTile(
             icon: Icons.hd,
             title: 'AI Upscale',
-            subtitle: 'Sharpen and enlarge (paid)',
-            onTap: onOpenStudio,
+            subtitle: 'Sharpen and enlarge - paid, needs credit',
+            onTap: () => open(const StudioScreen()),
           ),
           _ToolTile(
             icon: Icons.tune,
             title: 'Edit Photo',
-            subtitle: 'Crop, filters, tune, paint, text, stickers',
-            onTap: onOpenStudio,
+            subtitle: 'Crop, filters, tune, paint, text, stickers - free',
+            onTap: () => open(const StudioScreen()),
           ),
           _ToolTile(
-            icon: Icons.wb_shade_outlined,
+            icon: Icons.filter_drama,
             title: 'AI Shadows',
-            subtitle: 'Realistic drop shadows on the result (free)',
-            onTap: onOpenStudio,
+            subtitle: 'Drop shadow behind your product - free',
+            onTap: () => open(const StudioScreen()),
           ),
           _ToolTile(
-            icon: Icons.checkroom_outlined,
+            icon: Icons.checkroom,
             title: 'AI Fashion Models',
-            subtitle: 'Virtual try-on for clothing and jewelry (paid)',
-            onTap: onOpenStudio,
+            subtitle: 'Virtual try-on for clothing and jewellery - paid',
+            onTap: () => open(const StudioScreen()),
           ),
         ],
       ),
@@ -76,25 +71,22 @@ class _ToolTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.onTap,
+    required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final available = onTap != null;
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
         subtitle: Text(subtitle),
-        enabled: available,
-        trailing: available ? const Icon(Icons.chevron_right) : null,
+        trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );

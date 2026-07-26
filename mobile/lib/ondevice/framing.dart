@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
+import 'backdrops.dart';
+
 /// Marketplace presets for the final export.
 ///
 /// These encode the published main-image rules for each marketplace: a pure
@@ -72,12 +74,17 @@ class Framing {
   /// Crops to the subject's true bounding box first, so framing is measured
   /// against the product itself rather than whatever empty space happened to
   /// be in the original photo.
+  /// [backdrop] controls how the background *looks*; [preset] controls the
+  /// output size and how much of the frame the product fills. They are
+  /// deliberately independent -- an Amazon-sized image on a navy backdrop is
+  /// a valid secondary listing shot.
   static img.Image composeAndFrame({
     required Uint8List rgb,
     required Float32List alpha,
     required int width,
     required int height,
     required MarketplacePreset preset,
+    BackdropStyle backdrop = BackdropStyle.none,
   }) {
     // Subject bounding box.
     var minX = width, minY = height, maxX = -1, maxY = -1;
@@ -126,11 +133,24 @@ class Framing {
       interpolation: img.Interpolation.cubic,
     );
 
-    final canvas = img.Image(width: preset.size, height: preset.size, numChannels: 3);
-    img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
-
     final ox = (preset.size - newW) ~/ 2;
     final oy = (preset.size - newH) ~/ 2;
+
+    final img.Image canvas;
+    if (backdrop.isPlainWhite) {
+      canvas = img.Image(width: preset.size, height: preset.size, numChannels: 3);
+      img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
+    } else {
+      // Aim the backdrop's light at wherever the product actually ends up,
+      // rather than a fixed point a tall or short product would miss.
+      canvas = backdrop.render(
+        preset.size,
+        productCentreY: (oy + newH / 2) / preset.size,
+      );
+    }
+
+    // Reflection goes down before the shadow and product go on top.
+    backdrop.drawReflection(canvas, scaled, ox, oy);
 
     if (preset.shadow) {
       _drawContactShadow(canvas, scaled, ox, oy, preset.size);
@@ -163,6 +183,51 @@ class Framing {
     }
     img.gaussianBlur(shadow, radius: blur);
     img.compositeImage(canvas, shadow);
+  }
+
+  /// The cut-out product on transparency, cropped to its bounding box.
+  ///
+  /// For callers that want to composite onto something other than white --
+  /// a generated backdrop, say -- without paying for a second, cloud-side
+  /// background removal.
+  static img.Image toTransparentCutout({
+    required Uint8List rgb,
+    required Float32List alpha,
+    required int width,
+    required int height,
+  }) {
+    var minX = width, minY = height, maxX = -1, maxY = -1;
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        if (alpha[y * width + x] > 0.02) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) {
+      throw StateError('Nothing detected in the photo.');
+    }
+
+    final w = maxX - minX + 1;
+    final h = maxY - minY + 1;
+    final out = img.Image(width: w, height: h, numChannels: 4);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        final si = (y + minY) * width + (x + minX);
+        out.setPixelRgba(
+          x,
+          y,
+          rgb[si * 3],
+          rgb[si * 3 + 1],
+          rgb[si * 3 + 2],
+          (alpha[si] * 255).round().clamp(0, 255),
+        );
+      }
+    }
+    return out;
   }
 
   /// Encode as JPEG at a quality high enough that marketplace re-compression
