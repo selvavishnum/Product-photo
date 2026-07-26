@@ -33,7 +33,12 @@ dependencies:
   # removal still works with no Play Services, on a fresh install before the
   # ML Kit model has downloaded, and on iOS -- where the ML Kit plugin above
   # is only a stub. API verified against the published package source.
-  onnxruntime: ^1.4.1
+  #
+  # Not the older `onnxruntime` package: that one is published against
+  # compileSdk 33, while its own androidx dependencies require consumers to
+  # compile against 34+, so Gradle refuses to build it. This one targets
+  # compileSdk 35 and builds cleanly.
+  flutter_onnxruntime: ^1.8.3
   # Pure-Dart decode/resize/composite/encode for the post-processing stages.
   image: ^4.9.1
 
