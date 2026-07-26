@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -69,13 +70,13 @@ class ApiService {
   /// see backend/services/shadows.py. Returns raw PNG bytes directly,
   /// unlike the /ai/* endpoints which return a JSON-wrapped URL.
   Future<Uint8List> addShadow(Uint8List cutoutBytes) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/shadows'));
-    request.files.add(
-      http.MultipartFile.fromBytes('image', cutoutBytes, filename: 'cutout.png'),
-    );
-
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
+    final response = await _sendWithRetry(() {
+      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/shadows'));
+      request.files.add(
+        http.MultipartFile.fromBytes('image', cutoutBytes, filename: 'cutout.png'),
+      );
+      return request;
+    }, '/shadows');
 
     if (response.statusCode != 200) {
       throw ApiException('/shadows failed (${response.statusCode}): ${response.body}');
@@ -89,17 +90,18 @@ class ApiService {
     required Uint8List garmentBytes,
     required String garmentDescription,
   }) async {
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/ai/virtual-tryon'),
-    );
-    request.fields['garment_description'] = garmentDescription;
-    request.files.add(
-      http.MultipartFile.fromBytes('garment_image', garmentBytes, filename: 'garment.png'),
-    );
-
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
+    final response = await _sendWithRetry(() {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/ai/virtual-tryon'),
+      );
+      request.fields['garment_description'] = garmentDescription;
+      request.files.add(
+        http.MultipartFile.fromBytes('garment_image', garmentBytes,
+            filename: 'garment.png'),
+      );
+      return request;
+    }, '/ai/virtual-tryon');
 
     if (response.statusCode != 200) {
       throw ApiException(
@@ -123,21 +125,24 @@ class ApiService {
     if (queryParameters.isNotEmpty) {
       uri = uri.replace(queryParameters: queryParameters);
     }
-    final request = http.MultipartRequest('POST', uri);
-    request.fields.addAll(fields);
 
-    if (imageFile != null) {
-      request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
-    } else if (imageBytes != null) {
-      request.files.add(
-        http.MultipartFile.fromBytes('image', imageBytes, filename: 'upload.png'),
-      );
-    } else {
+    if (imageFile == null && imageBytes == null) {
       throw ArgumentError('Either imageFile or imageBytes must be provided');
     }
 
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
+    // Read the file once, up front: the retry loop rebuilds the request on
+    // each attempt and re-reading from disk every time would be wasteful.
+    final bytes = imageBytes ?? await imageFile!.readAsBytes();
+    final filename = imageFile != null ? 'upload.jpg' : 'upload.png';
+
+    final response = await _sendWithRetry(() {
+      final request = http.MultipartRequest('POST', uri);
+      request.fields.addAll(fields);
+      request.files.add(
+        http.MultipartFile.fromBytes('image', bytes, filename: filename),
+      );
+      return request;
+    }, endpoint);
 
     if (response.statusCode != 200) {
       throw ApiException('$endpoint failed (${response.statusCode}): ${response.body}');
@@ -154,6 +159,55 @@ class ApiService {
     }
     return response.bodyBytes;
   }
+
+  /// Sends a multipart request, retrying through the backend's cold start.
+  ///
+  /// The backend runs on Render's free tier, which sleeps after ~15 minutes
+  /// idle and takes ~50s to wake. During that wake the TCP connection is
+  /// accepted and then dropped, which surfaces as
+  /// `SocketException: Software caused connection abort (errno = 103)` --
+  /// not a real failure, just a server that is not up yet. One retry loop
+  /// turns that into a slow success instead of an error the user has to
+  /// understand.
+  ///
+  /// [build] must construct a *fresh* request each call: `http.MultipartRequest`
+  /// is single-use and cannot be re-sent once its body stream is consumed.
+  Future<http.Response> _sendWithRetry(
+    http.MultipartRequest Function() build,
+    String endpoint,
+  ) async {
+    var delay = const Duration(seconds: 3);
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+      try {
+        final streamed = await build().send().timeout(_requestTimeout);
+        return await http.Response.fromStream(streamed);
+      } on TimeoutException catch (e) {
+        lastError = e;
+      } on http.ClientException catch (e) {
+        lastError = e;
+      } on SocketException catch (e) {
+        lastError = e;
+      }
+
+      if (attempt < _maxAttempts) {
+        await Future<void>.delayed(delay);
+        delay *= 2;
+      }
+    }
+
+    throw ApiException(
+      "Couldn't reach the server for $endpoint after $_maxAttempts tries.\n\n"
+      'The backend sleeps when unused and takes about a minute to wake up. '
+      'Wait a moment and try again.\n\n($lastError)',
+    );
+  }
+
+  /// Long enough to cover a cold start plus a slow AI model, short enough
+  /// that a genuinely dead server does not hang the UI indefinitely.
+  static const _requestTimeout = Duration(seconds: 120);
+  static const _maxAttempts = 3;
 }
 
 class ApiException implements Exception {

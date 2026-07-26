@@ -66,7 +66,6 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
     try {
       final bytes = await source.readAsBytes();
       final out = await _pipeline.run(
-        imagePath: source.path,
         imageBytes: bytes,
         preset: _preset,
         onStage: (s) {
@@ -78,14 +77,29 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
         _result = out;
         _stage = null;
       });
-    } on SegmentationUnavailable catch (e) {
+    } on ModelDownloading {
       if (!mounted) return;
       setState(() {
         _stage = null;
         _error =
-            "Couldn't run the on-device model: $e\n\nOn a fresh install Google "
-            "Play Services downloads it the first time -- connect to Wi-Fi "
-            "once, then try again.";
+            'Google Play Services is still downloading the background-removal '
+            'model.\n\nThis happens once, on the first run. Stay connected for '
+            'a minute, then tap Try again -- your photo is fine.';
+      });
+    } on SegmentationSizeMismatch catch (e) {
+      // Our bug, not the device's -- say so rather than blaming the network.
+      if (!mounted) return;
+      setState(() {
+        _stage = null;
+        _error = "Couldn't process this photo: the mask didn't match the "
+            'image.\n\nThis is a bug in the app, not a problem with your '
+            'photo. Details: $e';
+      });
+    } on SegmentationUnavailable catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _stage = null;
+        _error = "The on-device model isn't available on this phone: $e";
       });
     } catch (e) {
       if (!mounted) return;
@@ -170,15 +184,20 @@ class _WhiteBackgroundScreenState extends State<WhiteBackgroundScreen> {
     }
 
     if (_error != null) {
-      return Center(
+      // Scrollable: a platform exception can carry a long Java stack trace,
+      // which previously overflowed the column and hid the Try again button
+      // behind Flutter's yellow overflow stripes.
+      return SingleChildScrollView(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const SizedBox(height: 24),
             const Icon(Icons.error_outline, size: 40),
             const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center),
+            SelectableText(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             OutlinedButton(onPressed: _process, child: const Text('Try again')),
+            const SizedBox(height: 24),
           ],
         ),
       );
