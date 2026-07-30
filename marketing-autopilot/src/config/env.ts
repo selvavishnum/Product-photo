@@ -37,6 +37,16 @@ const schema = z.object({
   GOOGLE_ADS_CLIENT_SECRET: z.string().optional(),
 
   MAX_DAILY_BUDGET_INR: z.coerce.number().int().positive().default(5000),
+
+  // Object storage for generated banners. S3-compatible: leave S3_ENDPOINT
+  // unset for AWS, set it for Cloudflare R2 / MinIO / B2.
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().default('auto'),
+  S3_ENDPOINT: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /** Public CDN origin in front of the bucket, e.g. https://cdn.example.com */
+  CDN_BASE_URL: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

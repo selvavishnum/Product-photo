@@ -131,3 +131,58 @@ trail before you ship the launch button.
 4. BullMQ workers for metric sync into `AdCreative`.
 5. Poster generation — the on-device pipeline in `../mobile` already does
    cutouts and studio backgrounds for free.
+
+## Ad banner rendering
+
+`src/services/poster.ts` assembles a 1080×1080 Instagram feed banner:
+gradient background, product centred, headline top, CTA pill bottom, optional
+logo. **~150ms per banner**, no diffusion model.
+
+### Sharp, not node-canvas — this is the important bit
+
+Tamil is a complex script: it needs ligature formation and combining-mark
+positioning. Sharp composites SVG through **librsvg → Pango → HarfBuzz**, which
+shapes Tamil correctly. **node-canvas draws through Cairo's "toy" text API,
+which has no complex-script shaping** — Tamil comes out as disconnected glyphs
+in the wrong order.
+
+Verified by rendering `ஸ்ரீ லக்ஷ்மி நகைக்கடை` and inspecting the output: the
+`ஸ்ரீ` and `க்ஷ்` ligatures form correctly.
+
+**The font must be installed on the host.** Without it you get tofu boxes, not
+an error:
+
+```dockerfile
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      fonts-noto-core fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+```
+
+### Layout notes
+
+- **Product placement is computed from the headline height**, not fixed. A
+  three-line Tamil headline is much taller than a one-line English one; with a
+  fixed position the tall case overlaps the product.
+- **A scrim is composited over the product, under the text.** Without it, a
+  pale product behind white headline text is unreadable — the most common way
+  an auto-generated banner fails.
+- **The headline auto-shrinks** (82px → 40px) until it fits three lines.
+- **All user text is XML-escaped.** SVG is XML; an unescaped `&` breaks the
+  document.
+
+### Storage
+
+`src/services/storage.ts` uploads to any S3-compatible bucket. **Cloudflare R2
+is the default** — no egress fees, which matters because ad platforms refetch
+these images repeatedly. Object keys include a content hash, so identical
+inputs overwrite rather than accumulate, and URLs are cacheable forever.
+
+### Worker
+
+```bash
+npm run worker   # BullMQ consumer for the `poster` queue
+```
+
+Queued rather than inline: the render is ~150ms but the upload is
+unpredictable, and a user clicking "generate" should not hold a connection
+open for it. Concurrency 4 — each job holds a full-size bitmap, so raise it
+only alongside the memory limit.
