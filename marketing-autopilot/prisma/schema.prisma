@@ -1,0 +1,158 @@
+// Schema for the AI marketing auto-pilot.
+//
+// Design note that drives most of what follows: this app spends its users'
+// money on their behalf. So every table that touches a campaign keeps an
+// audit trail, budgets are stored in integer minor units (paise) rather than
+// floats, and OAuth tokens are stored encrypted, never in plaintext.
+
+// Prisma 7: the client is generated to an explicit path and imported from
+// there, and the datasource no longer carries `url` -- the connection string
+// moves to prisma.config.ts, and the runtime gets it via a driver adapter.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Language {
+  TAMIL
+  ENGLISH
+  // Small businesses here routinely advertise in both at once, so this is a
+  // real third option rather than a fallback.
+  TANGLISH
+}
+
+enum Platform {
+  META
+  GOOGLE
+}
+
+enum CampaignStatus {
+  DRAFT // generated, never seen by the platform
+  PENDING // user approved, queued for submission
+  ACTIVE // live and spending
+  PAUSED
+  FAILED // platform rejected it; see statusDetail
+}
+
+model User {
+  id    String @id @default(cuid())
+  email String @unique
+
+  businessName     String
+  businessCategory String
+  city             String?
+  language         Language @default(TAMIL)
+
+  campaigns   Campaign[]
+  connections AdAccountConnection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+/// A connected Meta or Google ad account.
+///
+/// Split out of User rather than kept as columns on it: one business commonly
+/// runs several ad accounts, tokens expire and refresh on their own schedule,
+/// and keeping them in their own table means a token refresh never rewrites
+/// the user's profile row.
+model AdAccountConnection {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform Platform
+
+  /// The platform's own account id, e.g. Meta's act_<id>.
+  externalAccountId String
+
+  /// AES-256-GCM ciphertext, never the raw token. See src/lib/crypto.ts.
+  /// Plaintext ad tokens in a database is the single worst failure mode in
+  /// this product: they authorise spending real money.
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+
+  scopes String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, platform, externalAccountId])
+  @@index([userId])
+}
+
+model Campaign {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform Platform
+  status   CampaignStatus @default(DRAFT)
+
+  /// Why a campaign is FAILED or PAUSED -- usually the platform's rejection
+  /// reason, which the user has to see to act on.
+  statusDetail String?
+
+  adTitle String
+
+  /// Targeting as the LLM proposed it, validated against a Zod schema before
+  /// it is written. JSON rather than columns because Meta's and Google's
+  /// targeting shapes differ and both change often; freezing them into
+  /// columns now would mean a migration every time either platform adds a
+  /// field.
+  targetAudience Json
+
+  /// Paise, not rupees, and an integer. Money in floats accumulates rounding
+  /// error, and this value is multiplied by days to compute spend.
+  dailyBudgetMinor Int
+
+  currency String @default("INR")
+
+  /// Set once the platform accepts it. Absent while DRAFT/PENDING.
+  externalCampaignId String?
+
+  creatives AdCreative[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([platform, status])
+}
+
+model AdCreative {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  language Language
+
+  headline    String
+  primaryText String
+  cta         String
+
+  /// Generated poster. Nullable because copy is generated before artwork.
+  posterUrl String?
+
+  /// Metrics, refreshed from the platform. Nullable rather than 0-defaulted:
+  /// "not yet reported" and "reported as zero" mean different things, and a
+  /// CTR of 0 from 0 impressions is meaningless.
+  impressions Int?
+  clicks      Int?
+  spendMinor  Int?
+  ctr         Float?
+
+  metricsUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([campaignId])
+}
