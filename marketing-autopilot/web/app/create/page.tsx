@@ -378,7 +378,10 @@ function Primary({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="mt-8 w-full rounded-2xl bg-brand py-4 text-lg font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      // Indigo into cyan, the two brand accents. The gradient is confined to
+      // the one primary action per screen: used on every button it would stop
+      // signalling which one to press, which is the whole job of a primary.
+      className="mt-8 w-full rounded-2xl bg-gradient-to-r from-brand to-accent py-4 text-lg font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:from-brand disabled:to-brand disabled:opacity-40"
     >
       {children}
     </button>
