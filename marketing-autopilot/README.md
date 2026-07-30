@@ -302,3 +302,39 @@ says nothing has been published rather than showing a button that would fail.
 - **Tailwind v4 has no `tailwind.config.js`.** Theme tokens live in
   `app/globals.css` under `@theme`, and the only build wiring is
   `@tailwindcss/postcss`.
+
+
+## Deploy on Render
+
+A Blueprint at the repo root (`render.yaml`) defines both services.
+
+1. Render dashboard → **New** → **Blueprint** → select this repo.
+2. Render reads `render.yaml` and proposes **adpilot-api** and **adpilot-web**.
+3. Paste in **`GEMINI_API_KEY`** — the only value it cannot generate.
+4. Apply. First build takes a few minutes (the API image installs fonts).
+
+Your site is `https://adpilot-web.onrender.com`.
+
+### Things that are deliberate, not defaults
+
+- **No database is declared.** Only the poster worker touches Postgres; the
+  ad-generation flow does not. One less moving part and one less bill for the
+  first deploy. Add a `databases:` block when the worker goes live.
+- **The API is Docker, the web is the Node runtime.** The poster renderer
+  needs Tamil fonts installed system-wide, and without them Sharp still
+  *succeeds* while emitting tofu boxes — a wrong image rather than an error.
+  That makes fonts a correctness dependency, so the API ships its own image.
+- **Region is Singapore**, the closest Render region to Tamil Nadu.
+- **`API_ORIGIN` comes from `fromService`**, which yields a bare `host:port`
+  with no scheme. `next.config.ts` prefixes `https://`, because a scheme-less
+  rewrite destination silently never matches — it would fail only in
+  production.
+- **`next start` takes no `-p`.** Render injects `PORT` and Next honours it;
+  a hardcoded port fails the health check.
+
+### Free tier caveats
+
+- **Services sleep after ~15 minutes idle** and take ~50s to wake — the same
+  cold start as the Product Photo backend. Fine for demos, not for customers.
+- **Two free web services** is within Render's free allowance, but check your
+  account's current limits before assuming.

@@ -13,7 +13,11 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(8080),
 
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // Optional on purpose. Only the poster worker touches Postgres -- the
+  // /generate request path never does -- so the API deploys and serves
+  // without a database. Anything that needs it fails loudly at that point
+  // instead of blocking every deploy.
+  DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
   LLM_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
@@ -22,12 +26,14 @@ const schema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
 
-  // 32 raw bytes, base64-encoded: AES-256 needs exactly that.
+  // Either 32 raw bytes base64-encoded, or any high-entropy string of 32+
+  // characters, which is hashed to a 32-byte key (see lib/crypto.ts).
+  // Accepting both matters for hosted deploys: Render's "generate value"
+  // produces a random string, not base64 of exactly 32 bytes, and rejecting
+  // it would mean hand-generating a key before the first deploy.
   TOKEN_ENCRYPTION_KEY: z
     .string()
-    .refine((v) => Buffer.from(v, 'base64').length === 32, {
-      message: 'TOKEN_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
-    }),
+    .min(32, 'TOKEN_ENCRYPTION_KEY must be at least 32 characters'),
 
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),

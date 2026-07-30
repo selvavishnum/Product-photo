@@ -1,6 +1,19 @@
 import type { NextConfig } from 'next';
 
-const API_ORIGIN = process.env.API_ORIGIN ?? 'http://localhost:8080';
+/**
+ * Render's `fromService` gives a bare `host:port` with no scheme, but a
+ * rewrite destination must be an absolute URL. Normalise rather than assume:
+ * a missing scheme silently produces a rewrite that never matches, so the
+ * wizard would fail only in production.
+ */
+function resolveApiOrigin(): string {
+  const raw = process.env.API_ORIGIN?.trim();
+  if (!raw) return 'http://localhost:8080';
+  if (/^https?:\/\//.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
+const API_ORIGIN = resolveApiOrigin();
 
 const config: NextConfig = {
   // The repo has several package.json files (backend, web), so Next's
