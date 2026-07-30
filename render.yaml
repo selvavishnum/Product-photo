@@ -1,8 +1,13 @@
-# Render Blueprint for Ad Auto-Pilot.
+# Render Blueprint for Ad Auto-Pilot's API.
 #
 # Deploy: Render dashboard -> New -> Blueprint -> pick this repo.
 # Only GEMINI_API_KEY needs filling in by hand; everything else is set or
 # generated here.
+#
+# The API only. The Next.js front end is deployed on Vercel instead (see
+# marketing-autopilot/web/README.md) -- it is served from a CDN there, so it
+# has no cold start, and leaving the whole free instance-hours budget to this
+# one service is what makes keeping the API warm affordable.
 #
 # No database is declared. Only the poster worker touches Postgres, and the
 # ad-generation flow does not, so the first deploy has one less moving part
@@ -29,7 +34,7 @@ services:
       - key: LLM_PROVIDER
         value: gemini
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-flash-latest
       # The one value you must paste in yourself.
       - key: GEMINI_API_KEY
         sync: false
@@ -38,24 +43,3 @@ services:
         generateValue: true
       - key: MAX_DAILY_BUDGET_INR
         value: 5000
-
-  # ---- Web (Next.js) -------------------------------------------------------
-  - type: web
-    name: adpilot-web
-    runtime: node
-    plan: free
-    region: singapore
-    rootDir: marketing-autopilot/web
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      # Next rewrites /api/* to this, so the browser only ever sees one
-      # origin and there is no CORS to configure.
-      - key: API_ORIGIN
-        fromService:
-          name: adpilot-api
-          type: web
-          # Bare hostname, no scheme -- next.config.ts prefixes https://.
-          property: host

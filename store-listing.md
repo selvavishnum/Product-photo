@@ -1,8 +1,16 @@
 # Play Store Listing — Product Photo AI
 
+Draft copy for publishing `mobile/` (Product Photo Studio).
+
+**Only describe what ships.** Play rejects listings for features the build
+does not have, and the tools below are limited to what actually works
+today. AI Studio Backdrop, AI Upscale and Virtual Try-On are deliberately
+absent: they need fal.ai credit the account does not have, so they cannot
+be advertised. Add them back here when they work, not before.
+
 ## Short tagline (≤80 chars)
 
-Studio-quality AI product photos for Amazon, Flipkart & Shopify — no API key
+White-background product photos for Amazon & Flipkart — offline, no account
 
 ## Title
 
@@ -11,34 +19,44 @@ Product Photo AI: Product Photo Editor for Amazon & Flipkart
 ## Long description
 
 Product Photo AI turns any product picture into a clean, marketplace-ready
-image in seconds. Remove backgrounds, place products on AI models, sharpen
-low-res photos, and generate multiple angles — all on-device, with no API
-key or account setup required. Built for Amazon and Flipkart sellers, Etsy
-and Shopify shops, and small brands who need consistent listing photos
-without a studio or photographer.
+listing image in seconds. Cut out your product, drop it on a pure white
+background at the size Amazon and Flipkart expect, and save. It all runs on
+your own phone — no account, no subscription, and your photos never leave
+the device. Built for Amazon and Flipkart sellers, Etsy and Shopify shops,
+and small brands who need consistent listing photos without a studio or a
+photographer.
 
 TOOLS
-• Background Removal: Cut out your product and drop it onto a pure white,
-  transparent, or lifestyle background — ready for Amazon and Flipkart
-  main-image requirements.
-• AI Model Placement: Show your product being worn or used by an AI-
-  generated model for apparel, accessories, and lifestyle listings.
-• Photo Upscale: Sharpen blurry or low-resolution photos so zoom views and
-  print assets stay crisp.
-• Multi-Angle & Variations: Generate extra angles and color/material
-  variations from a single source photo for a complete gallery.
+• White Background: Cut out your product and place it on pure white, sized
+  to Amazon (1600px, product at 85% of frame), Flipkart, or a Studio
+  preset — ready for main-image requirements. Also exports a transparent
+  cutout.
+• Studio Backdrops: Five ready backdrops — gradient, spotlight and
+  reflection — composited on your phone in a moment.
+• Photo Editor: Crop, rotate, filters, brightness and colour tuning, blur,
+  paint, text and stickers.
+• Drop Shadows: Add a natural shadow under your product.
 
 WHY USE PRODUCT PHOTO AI
-• No API key, no account, no subscription to start — open the app and go.
-• Marketplace-ready output sized and backgrounded for Amazon and Flipkart
-  listing rules.
-• One photo in, a full product gallery out — no reshoots needed.
-• Consistent look across your entire catalog.
+• Works offline. The cutout runs on your phone's own processor, so it works
+  with no signal and costs nothing per photo.
+• Your photos stay on your phone.
+• No account, no API key, no subscription to start.
+• Output sized and backgrounded for Amazon and Flipkart listing rules.
+• Consistent look across your whole catalogue.
 
 USE CASES
-• Amazon and Flipkart main image + secondary shots
+• Amazon and Flipkart main images
 • Etsy and Shopify listing photos
-• Apparel and accessory on-model shots
-• Catalog refreshes without a new photo shoot
+• Jewellery, books, electronics and general goods listings
+• Catalogue refreshes without a new photo shoot
 
-Free to start. No API key required.
+Free. No account required.
+
+## Data safety notes
+
+The background removal, backdrops and editor are entirely on-device — no
+upload, so nothing to declare for them. Drop Shadows uploads the image to
+the app's own server for processing and does not store it; declare that as
+"Photos, transferred, not stored, for app functionality" and keep it
+accurate if more server-side features are added.

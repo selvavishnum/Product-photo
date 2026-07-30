@@ -1,22 +1,16 @@
-# Android / Gradle
+# Editors / OS
 *.iml
-.gradle/
-/local.properties
 .idea/
 .DS_Store
-/build
-/app/build
+
+# Android build output. Still needed after the native Kotlin app was
+# removed: mobile/ generates its own android/ folder in CI and Gradle runs
+# underneath Flutter there.
+.gradle/
+local.properties
 /captures
-.externalNativeBuild
-.cxx
 *.apk
 *.aab
-
-# Not committed: this sandbox can't reach services.gradle.org to generate a
-# real one, and gradle/actions/setup-gradle rejects hand-made copies by
-# checksum (rightly - that check exists to catch supply-chain tampering).
-# Run `gradle wrapper --gradle-version 8.7` locally once to create it.
-gradle/wrapper/gradle-wrapper.jar
 
 # Python backend
 backend/__pycache__/

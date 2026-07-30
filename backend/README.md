@@ -4,15 +4,16 @@ FastAPI service with two groups of endpoints:
 - **Free, no API key**: `/remove-background` (`rembg`, open-source,
   ONNX-based, runs locally), `/upscale` (classical Lanczos resampling +
   unsharp mask, Pillow only), and `/shadows` (classical drop-shadow
-  compositing, Pillow only). Used by the existing native Android app
-  (`../app`).
+  compositing, Pillow only). `/shadows` backs the app's "Add Shadow"
+  button; `/remove-background` and `/upscale` are no longer called by the
+  app — it does both on-device now — but are kept as a server-side path for
+  batch work and for clients that cannot run the on-device pipeline.
 - **Paid, needs a fal.ai account**: `/ai/remove-background`,
-  `/ai/generate-background`, `/ai/upscale`, and `/ai/virtual-tryon`.
-  `/ai/remove-background`, `/ai/generate-background`, and
-  `/ai/virtual-tryon` are used by the Flutter studio app (`../mobile`) only;
-  `/ai/upscale` is used by both `../mobile` and the native Android app
-  (`../app`, as a paid alternative to its free `/upscale`). See "fal.ai AI
-  features" below before using these — every call costs money.
+  `/ai/generate-background`, `/ai/upscale`, and `/ai/virtual-tryon`. The
+  app calls `/ai/generate-background`, `/ai/upscale` and
+  `/ai/virtual-tryon`; `/ai/remove-background` is unused since background
+  removal moved on-device. See "fal.ai AI features" below before using
+  these — every call costs money.
 
 **Already hosted** for this app at `https://product-photo-backend.onrender.com/`
 (Render.com free tier) — that's the default `BACKEND_BASE_URL` baked into the
@@ -128,11 +129,9 @@ from a phone browser, no `git push` needed:
 5. Watch the **Logs** tab until it says **"Live"** — the backend is now at
    `https://<your-service-name>.onrender.com`.
 6. Point the app at it (already the default if you're using this app's own
-   deployment above; for your own):
-   ```bash
-   ./gradlew assembleDebug -PbackendUrl=https://<your-service-name>.onrender.com/
-   ```
-   or via the CI workflow's `backend_url` input (see root `README.md`).
+   deployment above; for your own): edit `baseUrl` in
+   `../mobile/lib/services/api_service.dart`, or pass the URL to the CI
+   workflow's `backend_url` input (see root `README.md`).
 
 Free-tier caveat: the service sleeps after ~15 minutes of no traffic and
 takes about 50s to wake up on the next request (cold start). Fine for

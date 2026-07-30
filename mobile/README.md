@@ -1,15 +1,15 @@
 # Product Photo Studio — Flutter app
 
-Cross-platform (Android now, iOS later) frontend for the AI studio features:
-background removal (BiRefNet via fal.ai) and AI studio backdrop generation
-(FLUX.1 dev inpainting via fal.ai). Talks to the `/ai/*` endpoints in
-`../backend`.
+Cross-platform (Android now, iOS later) app for marketplace-ready product
+photos. Background removal, studio backdrops and photo editing run
+**entirely on the phone**; the remaining AI extras call the `/ai/*`
+endpoints in `../backend`.
 
-**This is a separate app from `../app` (the existing native Android app).**
-`../app` keeps working as-is (backend-based background removal via free
-`rembg`, Backdrop Select, classical Upscale) — nothing here replaces it
-automatically. This is the start of the Flutter rewrite; cutting over is a
-separate decision for later.
+**This is the only app in the repo.** The original native Android app
+(`../app`, Kotlin/Compose) was deleted: everything it did that still worked
+is covered here and runs on-device instead of over the network, and its one
+unique feature (AI Upscale via fal.ai) was already dead on an exhausted
+balance.
 
 ## What's here vs. what's not
 
@@ -77,8 +77,8 @@ it once and commit it from then on.
 
 ## Running/building without a computer
 
-Same pattern as `../app`: GitHub Actions builds the APK, since there's no
-local Flutter SDK in this workflow.
+GitHub Actions builds the APK, since there's no local Flutter SDK in this
+workflow.
 
 1. Push to `main`, or open a PR touching `mobile/` — this triggers
    `.github/workflows/build-flutter-apk.yml`.
@@ -108,8 +108,8 @@ your fal.ai dashboard (this repo's sandbox has no network access to fal.ai
 to verify them independently, so treat them as placeholders to confirm, not
 guaranteed-correct values).
 
-**Every `/ai/*` call costs real money** on your fal.ai account — unlike
-`../app`'s free `rembg`-based removal, and unlike this app's own "Add
-Shadow" button (classical, free, no fal.ai call). Test with a small number
+**Every `/ai/*` call costs real money** on your fal.ai account — unlike the
+on-device background removal, and unlike the "Add Shadow" button
+(classical, free, no fal.ai call). Test with a small number
 of images first and check fal.ai's dashboard for actual per-call cost
 before assuming a price.
