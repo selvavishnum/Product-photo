@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { invalidModelOutput, upstreamFailed } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * What the model is required to return.
@@ -130,20 +131,82 @@ function buildPrompt(brief: AdBrief): string {
   ].join('\n');
 }
 
+/**
+ * Models tried, in order, when the configured one is unavailable.
+ *
+ * Google retires model versions and closes older ones to new API keys, which
+ * is not something a deploy can predict -- `gemini-2.5-flash` started
+ * returning 404 "no longer available to new users" in production with no code
+ * change on our side. Aliases like `gemini-flash-latest` track the current
+ * model and do not go stale, so they lead; pinned versions follow as a
+ * backstop in case an alias is unavailable in some project.
+ */
+const GEMINI_FALLBACK_MODELS = [
+  'gemini-flash-latest',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+];
+
+/** True for "this model does not exist / not available to you" responses. */
+function isModelUnavailable(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return (
+    /\b404\b/.test(text) ||
+    /NOT_FOUND/i.test(text) ||
+    /no longer available/i.test(text) ||
+    /is not found/i.test(text)
+  );
+}
+
 async function callGemini(prompt: string): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY! });
-  const response = await ai.models.generateContent({
-    model: env.GEMINI_MODEL,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseJsonSchema: RESPONSE_JSON_SCHEMA,
-      temperature: 0.8,
-    },
-  });
-  const text = response.text;
-  if (!text) throw invalidModelOutput('Gemini returned an empty response');
-  return text;
+
+  // Configured model first, then the fallbacks it is not already equal to.
+  const candidates = [
+    env.GEMINI_MODEL,
+    ...GEMINI_FALLBACK_MODELS.filter((m) => m !== env.GEMINI_MODEL),
+  ];
+
+  let lastError: unknown;
+  for (const model of candidates) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseJsonSchema: RESPONSE_JSON_SCHEMA,
+          temperature: 0.8,
+        },
+      });
+      const text = response.text;
+      if (!text) throw invalidModelOutput('Gemini returned an empty response');
+
+      if (model !== env.GEMINI_MODEL) {
+        // Loud rather than silent: the deploy is running on a model nobody
+        // chose, and GEMINI_MODEL should be updated to match.
+        logger.warn(
+          { configured: env.GEMINI_MODEL, using: model },
+          'configured Gemini model unavailable; used a fallback. Set GEMINI_MODEL to this value.',
+        );
+      }
+      return text;
+    } catch (err) {
+      if (isModelUnavailable(err)) {
+        logger.warn({ model, err: String(err).slice(0, 200) }, 'Gemini model unavailable, trying next');
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw upstreamFailed(
+    `No usable Gemini model. Tried: ${candidates.join(', ')}. ` +
+      'List the models your key can actually use with: curl ' +
+      '"https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY"',
+    lastError instanceof Error ? lastError.message : String(lastError),
+  );
 }
 
 async function callOpenAI(prompt: string): Promise<string> {

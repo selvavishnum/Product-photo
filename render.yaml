@@ -29,7 +29,7 @@ services:
       - key: LLM_PROVIDER
         value: gemini
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-flash-latest
       # The one value you must paste in yourself.
       - key: GEMINI_API_KEY
         sync: false
