@@ -150,13 +150,23 @@ in the wrong order.
 Verified by rendering `ஸ்ரீ லக்ஷ்மி நகைக்கடை` and inspecting the output: the
 `ஸ்ரீ` and `க்ஷ்` ligatures form correctly.
 
-**The font must be installed on the host.** Without it you get tofu boxes, not
-an error:
+**The fonts must be installed on the host, and so must fontconfig.** Without
+the fonts you get tofu boxes rather than an error. Without `fontconfig` the
+fonts sit on disk but librsvg cannot resolve a family name like
+`Noto Sans Tamil` at all — and `node:*-slim` ships neither:
 
 ```dockerfile
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      fonts-noto-core fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       fontconfig fonts-noto-core fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -f \
+    && fc-list | grep -q "Noto Sans Tamil" \
+    && fc-list | grep -q "DejaVu Sans"
 ```
+
+The two `fc-list` checks are deliberate: they turn a missing font into a build
+failure instead of a silently wrong image months later.
 
 ### Layout notes
 

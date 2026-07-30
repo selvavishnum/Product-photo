@@ -8,10 +8,25 @@ FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      fonts-noto-core fonts-dejavu-core \
+# fontconfig is not present in node:*-slim and is needed twice over: it
+# provides fc-cache/fc-list, and librsvg resolves family names like
+# "Noto Sans Tamil" through it at runtime. Installing only the font packages
+# leaves the fonts on disk but unfindable.
+#
+# The two fc-list checks fail the build now if a font the renderer asks for is
+# missing. The runtime failure mode is a silently wrong image rather than an
+# exception, which is far more expensive to notice.
+#
+# Comments are kept outside the RUN: a `#` line inside a line continuation is
+# handled inconsistently across Docker parser versions and is a known way to
+# break a build.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       fontconfig fonts-noto-core fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/* \
-    && fc-cache -f
+    && fc-cache -f \
+    && fc-list | grep -q "Noto Sans Tamil" \
+    && fc-list | grep -q "DejaVu Sans"
 
 WORKDIR /app
 
