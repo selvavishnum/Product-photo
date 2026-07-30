@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ad Auto-Pilot</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1e222b;
+    --line: #2a2f3a; --text: #e8eaee; --muted: #9aa1ad;
+    --accent: #6c8cff; --accent-ink: #0b1020; --ok: #64c896; --warn: #e8b062;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  form, .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 5px; }
+  input, textarea, select {
+    width: 100%; padding: 10px 12px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 9px; color: var(--text);
+    font: inherit;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent;
+  }
+  textarea { min-height: 96px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  button {
+    margin-top: 20px; width: 100%; padding: 12px 16px; border: 0;
+    border-radius: 10px; background: var(--accent); color: var(--accent-ink);
+    font: inherit; font-weight: 650; cursor: pointer;
+  }
+  button:disabled { opacity: .55; cursor: progress; }
+  #out { margin-top: 24px; display: none; }
+  .tag {
+    display: inline-block; font-size: 12px; font-weight: 650;
+    padding: 3px 9px; border-radius: 20px; background: #23303f; color: var(--ok);
+  }
+  .copy {
+    border: 1px solid var(--line); border-radius: 11px; padding: 14px;
+    margin-top: 12px; background: var(--panel-2);
+  }
+  .copy h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .headline { font-weight: 650; margin-bottom: 6px; }
+  .cta {
+    display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 650;
+    padding: 6px 12px; border-radius: 8px; background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    background: #232833; color: var(--muted); border: 1px solid var(--line);
+  }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 10px 0 0; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .banner {
+    margin-top: 16px; padding: 11px 14px; border-radius: 10px; font-size: 13.5px;
+    background: #2a2418; color: var(--warn); border: 1px solid #453a22;
+  }
+  .err { background: #2c1c1e; color: #f0a1a1; border-color: #4a2b2e; }
+  .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ad Auto-Pilot</h1>
+  <p class="sub">Describe your business. Get targeting and ad copy in Tamil or English.</p>
+
+  <form id="f">
+    <div class="row">
+      <div>
+        <label for="businessName">Business name</label>
+        <input id="businessName" name="businessName" required placeholder="Sri Lakshmi Jewellers" />
+      </div>
+      <div>
+        <label for="businessCategory">Category</label>
+        <input id="businessCategory" name="businessCategory" required placeholder="Jewellery shop" />
+      </div>
+    </div>
+
+    <label for="description">Describe your business and what you want to advertise</label>
+    <textarea id="description" name="description" required
+      placeholder="We sell gold and silver jewellery in Thuckalay. Mostly bridal sets and daily-wear chains. We want more young customers for the wedding season."></textarea>
+
+    <div class="row">
+      <div>
+        <label for="city">City / town</label>
+        <input id="city" name="city" placeholder="Thuckalay" />
+      </div>
+      <div>
+        <label for="language">Ad language</label>
+        <select id="language" name="language">
+          <option value="TAMIL">Tamil</option>
+          <option value="TANGLISH">Tanglish</option>
+          <option value="ENGLISH">English</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="dailyBudgetInr">Daily budget (INR)</label>
+        <input id="dailyBudgetInr" name="dailyBudgetInr" type="number" min="1" value="300" required />
+      </div>
+      <div>
+        <label for="image">Product photo (optional)</label>
+        <input id="image" name="image" type="file" accept="image/*" />
+      </div>
+    </div>
+
+    <button id="go" type="submit">Generate ad plan</button>
+    <p class="muted" style="margin-top:12px">
+      Nothing is published. This only proposes a plan for you to review.
+    </p>
+  </form>
+
+  <div id="out"></div>
+</div>
+
+<script type="module">
+  const form = document.getElementById('f');
+  const out = document.getElementById('out');
+  const go = document.getElementById('go');
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    go.disabled = true;
+    go.textContent = 'Thinking...';
+    out.style.display = 'block';
+    out.innerHTML = '<div class="card">Generating your plan...</div>';
+
+    try {
+      // FormData throughout, so the optional image needs no separate path.
+      const res = await fetch('/api/v1/ad/generate', {
+        method: 'POST',
+        body: new FormData(form),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const d = data?.error?.details;
+        out.innerHTML = `<div class="card"><div class="banner err">
+          <strong>${esc(data?.error?.code ?? 'Error')}</strong><br>
+          ${esc(data?.error?.message ?? 'Request failed')}
+          ${d ? `<br><span class="muted">${esc(JSON.stringify(d).slice(0, 300))}</span>` : ''}
+        </div></div>`;
+        return;
+      }
+
+      const t = data.plan.targeting;
+      out.innerHTML = `
+        <div class="card">
+          <span class="tag">DRAFT - nothing published</span>
+          <dl>
+            <dt>Age</dt><dd>${t.ageMin}-${t.ageMax}</dd>
+            <dt>Gender</dt><dd>${esc(t.genders.join(', '))}</dd>
+            <dt>Area</dt><dd>${esc(t.locationName)} - ${t.locationRadiusKm} km radius</dd>
+            <dt>Budget</dt><dd>INR ${data.input.dailyBudgetInr}/day</dd>
+          </dl>
+          <div class="chips">${t.interests.map((i) => `<span class="chip">${esc(i)}</span>`).join('')}</div>
+          <p class="muted" style="margin-top:12px">${esc(t.rationale)}</p>
+          ${data.plan.copies.map((c) => `
+            <div class="copy">
+              <h4>${esc(c.language)}</h4>
+              <div class="headline">${esc(c.headline)}</div>
+              <div>${esc(c.primaryText)}</div>
+              <span class="cta">${esc(c.cta)}</span>
+            </div>`).join('')}
+          <div class="banner">${esc(data.note)}</div>
+        </div>`;
+    } catch (err) {
+      out.innerHTML = `<div class="card"><div class="banner err">
+        Could not reach the server. Is it running on this port?<br>
+        <span class="muted">${esc(err.message)}</span>
+      </div></div>`;
+    } finally {
+      go.disabled = false;
+      go.textContent = 'Generate ad plan';
+    }
+  });
+</script>
+</body>
+</html>
