@@ -15,6 +15,14 @@ import { PrismaClient } from '../generated/prisma/client.js';
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient(): PrismaClient {
+  if (!env.DATABASE_URL) {
+    // Reached only from code paths that genuinely need Postgres (currently
+    // just the poster worker). The API serves /generate without it.
+    throw new Error(
+      'DATABASE_URL is not set. It is required for the worker and anything ' +
+        'that reads or writes campaigns, but not for ad generation.',
+    );
+  }
   const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
   return new PrismaClient({
     adapter,

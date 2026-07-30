@@ -2,7 +2,21 @@ import crypto from 'node:crypto';
 
 import { env } from '../config/env.js';
 
-const KEY = Buffer.from(env.TOKEN_ENCRYPTION_KEY, 'base64');
+/**
+ * Derives the AES key from the configured secret.
+ *
+ * A value that base64-decodes to exactly 32 bytes is used as-is, so keys
+ * generated the documented way keep working and previously encrypted tokens
+ * stay readable. Anything else is hashed to 32 bytes with SHA-256, which is
+ * what makes a host-generated random string usable directly.
+ */
+function deriveKey(secret: string): Buffer {
+  const decoded = Buffer.from(secret, 'base64');
+  if (decoded.length === 32) return decoded;
+  return crypto.createHash('sha256').update(secret, 'utf8').digest();
+}
+
+const KEY = deriveKey(env.TOKEN_ENCRYPTION_KEY);
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12; // GCM standard
 

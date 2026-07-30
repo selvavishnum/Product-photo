@@ -4,7 +4,7 @@ AI marketing assistant for small local businesses. Describe your shop, get a
 target audience and ad copy in Tamil / Tanglish / English.
 
 Node 20+, TypeScript, Express 5, Prisma 7 + PostgreSQL, Zod 4, Gemini or
-OpenAI. A plain HTML/JS front end is served from `public/`.
+OpenAI. The front end is a Next.js 16 app in `web/`.
 
 ## Read this before planning a launch date
 
@@ -31,7 +31,7 @@ side of this app (this repo, today) works without either.
 | Prisma schema: User, AdAccountConnection, Campaign, AdCreative | done |
 | `POST /api/v1/ad/generate` — targeting + multilingual copy | done |
 | Encrypted-at-rest OAuth token storage (AES-256-GCM) | helper done, OAuth flow not built |
-| Web UI | done |
+| Web UI — Next.js 16 landing + 3-step wizard (`web/`) | done |
 | Meta publish workflow (`services/metaAds.ts`) | code done, **untested against live API** |
 | Google Ads submission | **not built** |
 | Redis/BullMQ queue | dependency added, no workers yet |
@@ -251,3 +251,90 @@ crop or restyle the poster — which would wreck carefully laid-out Tamil text.
 
 **Not yet tested against the live API.** It typechecks and every enum resolves
 against the installed SDK, but no call has been made to Meta.
+
+
+## Front end (`web/`)
+
+Next.js 16 (App Router, Turbopack), React 19, Tailwind v4. Two routes: `/`
+(landing) and `/create` (the wizard).
+
+```bash
+cd web && npm install && npm run dev   # :3000
+# in another terminal, the API:
+npm run dev                            # :8080
+```
+
+`next.config.ts` rewrites `/api/*` to the Express server, so the browser only
+ever talks to one origin and there is no CORS setup. Point it elsewhere with
+`API_ORIGIN`.
+
+### Why it looks the way it does
+
+The audience is shop owners, not marketers, so the wizard is three screens
+with **one decision each**:
+
+- **Budget is preset chips, not a number field.** Asking "how much per day?"
+  as free input makes someone guess a number they have no basis for, and it is
+  where people abandon. Three amounts with a plain-language consequence is a
+  decision they can actually make.
+- **No advertising vocabulary anywhere** — no objective, optimisation goal,
+  bid strategy, CPM or impressions. Those are chosen server-side.
+- **Tamil sits beside English**, not behind a language toggle. Someone more
+  comfortable in either should not have to find a setting first.
+- **48px minimum tap targets**, set globally in `globals.css`. This gets used
+  one-handed behind a counter.
+- **Tamil gets extra line-height** (1.7): its combining marks sit well above
+  and below the baseline and collide at normal leading.
+
+### Copy is limited to what exists
+
+The landing page claims only what the code does. **No Google Ads and no voice
+input** — neither is built, and advertising an unbuilt feature is exactly what
+the ad-copy prompt forbids our own users from doing. The footer says plainly
+that publishing needs a connected Meta account, and the wizard's final screen
+says nothing has been published rather than showing a button that would fail.
+
+### Two Next 16 gotchas hit while building
+
+- **`turbopack.root` must be pinned.** With several `package.json` files in
+  the repo, Next infers the wrong workspace root and then cannot resolve
+  itself.
+- **Tailwind v4 has no `tailwind.config.js`.** Theme tokens live in
+  `app/globals.css` under `@theme`, and the only build wiring is
+  `@tailwindcss/postcss`.
+
+
+## Deploy on Render
+
+A Blueprint at the repo root (`render.yaml`) defines both services.
+
+1. Render dashboard → **New** → **Blueprint** → select this repo.
+2. Render reads `render.yaml` and proposes **adpilot-api** and **adpilot-web**.
+3. Paste in **`GEMINI_API_KEY`** — the only value it cannot generate.
+4. Apply. First build takes a few minutes (the API image installs fonts).
+
+Your site is `https://adpilot-web.onrender.com`.
+
+### Things that are deliberate, not defaults
+
+- **No database is declared.** Only the poster worker touches Postgres; the
+  ad-generation flow does not. One less moving part and one less bill for the
+  first deploy. Add a `databases:` block when the worker goes live.
+- **The API is Docker, the web is the Node runtime.** The poster renderer
+  needs Tamil fonts installed system-wide, and without them Sharp still
+  *succeeds* while emitting tofu boxes — a wrong image rather than an error.
+  That makes fonts a correctness dependency, so the API ships its own image.
+- **Region is Singapore**, the closest Render region to Tamil Nadu.
+- **`API_ORIGIN` comes from `fromService`**, which yields a bare `host:port`
+  with no scheme. `next.config.ts` prefixes `https://`, because a scheme-less
+  rewrite destination silently never matches — it would fail only in
+  production.
+- **`next start` takes no `-p`.** Render injects `PORT` and Next honours it;
+  a hardcoded port fails the health check.
+
+### Free tier caveats
+
+- **Services sleep after ~15 minutes idle** and take ~50s to wake — the same
+  cold start as the Product Photo backend. Fine for demos, not for customers.
+- **Two free web services** is within Render's free allowance, but check your
+  account's current limits before assuming.

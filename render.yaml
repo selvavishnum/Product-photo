@@ -1,0 +1,61 @@
+# Render Blueprint for Ad Auto-Pilot.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo.
+# Only GEMINI_API_KEY needs filling in by hand; everything else is set or
+# generated here.
+#
+# No database is declared. Only the poster worker touches Postgres, and the
+# ad-generation flow does not, so the first deploy has one less moving part
+# and one less thing to pay for. Add a `databases:` block when the worker
+# goes live.
+services:
+  # ---- API (Express) -------------------------------------------------------
+  # Docker, not the Node runtime: the poster renderer needs Tamil fonts
+  # installed system-wide, and their absence produces wrong images rather
+  # than an error.
+  - type: web
+    name: adpilot-api
+    runtime: docker
+    plan: free
+    region: singapore # closest Render region to Tamil Nadu
+    rootDir: marketing-autopilot
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      # The one value you must paste in yourself.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Random per-environment. Any 32+ char string works; see lib/crypto.ts.
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      - key: MAX_DAILY_BUDGET_INR
+        value: 5000
+
+  # ---- Web (Next.js) -------------------------------------------------------
+  - type: web
+    name: adpilot-web
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: marketing-autopilot/web
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Next rewrites /api/* to this, so the browser only ever sees one
+      # origin and there is no CORS to configure.
+      - key: API_ORIGIN
+        fromService:
+          name: adpilot-api
+          type: web
+          # Bare hostname, no scheme -- next.config.ts prefixes https://.
+          property: host

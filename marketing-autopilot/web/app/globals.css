@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Tailwind v4 keeps theme tokens in CSS. Kept deliberately small: a handful
+   of tokens the whole UI reuses, rather than a palette nobody can hold in
+   their head. */
+@theme {
+  --color-ink: #0d1117;
+  --color-surface: #161b22;
+  --color-line: #2a313c;
+  --color-brand: #3b82f6;
+  --color-brand-soft: #1e3a8a;
+}
+
+html {
+  /* Tamil needs more line height than Latin: its combining marks sit well
+     above and below the baseline and collide at normal leading. */
+  line-height: 1.7;
+}
+
+/* Comfortable tap targets. The audience is shop owners on phones, often
+   one-handed behind a counter. */
+button, a[role="button"], input, select, textarea {
+  min-height: 48px;
+}
