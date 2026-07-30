@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import WarmApi from './warm-api';
+
 /**
  * Landing page.
  *
@@ -11,6 +13,10 @@ import Link from 'next/link';
 export default function LandingPage() {
   return (
     <main>
+      {/* Starts the API booting while this page is being read, so it is
+          already up by the time the wizard needs it. Renders nothing. */}
+      <WarmApi />
+
       <nav className="flex items-center justify-between border-b border-line px-6 py-5">
         <span className="text-lg font-semibold">Ad Auto-Pilot</span>
         <Link

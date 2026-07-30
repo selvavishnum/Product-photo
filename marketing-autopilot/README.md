@@ -314,37 +314,61 @@ says nothing has been published rather than showing a button that would fail.
   `@tailwindcss/postcss`.
 
 
-## Deploy on Render
+## Deploy: API on Render, web on Vercel
 
-A Blueprint at the repo root (`render.yaml`) defines both services.
+Split on purpose. Both halves used to run on Render's free plan, which stops
+a service after 15 minutes idle — so opening the site paid one ~50s cold
+start to load the page, and pressing "Make my ad" paid a *second* one waking
+the API. Vercel serves the front end's prerendered HTML from a CDN, so that
+first wait disappears entirely and only the API can be asleep.
+
+### API → Render
+
+A Blueprint at the repo root (`render.yaml`) defines the one service.
 
 1. Render dashboard → **New** → **Blueprint** → select this repo.
-2. Render reads `render.yaml` and proposes **adpilot-api** and **adpilot-web**.
+2. Render reads `render.yaml` and proposes **adpilot-api**.
 3. Paste in **`GEMINI_API_KEY`** — the only value it cannot generate.
-4. Apply. First build takes a few minutes (the API image installs fonts).
+4. Apply. First build takes a few minutes (the image installs fonts).
 
-Your site is `https://adpilot-web.onrender.com`.
+Note the service URL — Vercel needs it.
+
+### Web → Vercel
+
+See `web/README.md` for the full walkthrough. In short: import the repo,
+**set Root Directory to `marketing-autopilot/web`**, and add `API_ORIGIN`
+pointing at the Render URL above.
+
+`API_ORIGIN` is read during `next build` and baked into
+`routes-manifest.json`, so changing it in the dashboard does nothing until
+you redeploy. Leaving it unset is worse than an error — the build silently
+falls back to `http://localhost:8080` and deploys.
 
 ### Things that are deliberate, not defaults
 
 - **No database is declared.** Only the poster worker touches Postgres; the
   ad-generation flow does not. One less moving part and one less bill for the
   first deploy. Add a `databases:` block when the worker goes live.
-- **The API is Docker, the web is the Node runtime.** The poster renderer
-  needs Tamil fonts installed system-wide, and without them Sharp still
-  *succeeds* while emitting tofu boxes — a wrong image rather than an error.
-  That makes fonts a correctness dependency, so the API ships its own image.
+- **The API is Docker**, not Render's Node runtime. The poster renderer needs
+  Tamil fonts installed system-wide, and without them Sharp still *succeeds*
+  while emitting tofu boxes — a wrong image rather than an error. That makes
+  fonts a correctness dependency, so the API ships its own image.
 - **Region is Singapore**, the closest Render region to Tamil Nadu.
-- **`API_ORIGIN` comes from `fromService`**, which yields a bare `host:port`
-  with no scheme. `next.config.ts` prefixes `https://`, because a scheme-less
-  rewrite destination silently never matches — it would fail only in
-  production.
-- **`next start` takes no `-p`.** Render injects `PORT` and Next honours it;
-  a hardcoded port fails the health check.
+- **`next.config.ts` prefixes `https://`** onto a scheme-less `API_ORIGIN`.
+  Vercel takes whatever is pasted into the dashboard and Render's
+  `fromService` yields a bare `host:port`; a scheme-less rewrite destination
+  silently never matches, so it would fail only in production.
+- **The front end pings `/api/warmup` on mount** (`web/app/warm-api.tsx`),
+  rewritten to the API's `/health`. It spends the API's cold start against
+  time the user is already using instead of against the wait after they press
+  the button. Fire-and-forget: a failure here must never surface.
 
 ### Free tier caveats
 
-- **Services sleep after ~15 minutes idle** and take ~50s to wake — the same
-  cold start as the Product Photo backend. Fine for demos, not for customers.
-- **Two free web services** is within Render's free allowance, but check your
-  account's current limits before assuming.
+- **The API sleeps after ~15 minutes idle** and takes ~50s to wake — the same
+  cold start as the Product Photo backend. The warm-up ping hides most of it
+  in normal use, but a first request still pays for it.
+- **Only one free service now**, so the whole free instance-hours allowance
+  goes to the API. That is what makes an external uptime pinger affordable if
+  the warm-up ping is not enough — check your account's current limits before
+  assuming.
