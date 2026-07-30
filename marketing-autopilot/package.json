@@ -23,6 +23,7 @@
     "bullmq": "^5.81.3",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "facebook-nodejs-business-sdk": "^24.0.1",
     "helmet": "^8.1.0",
     "multer": "^2.0.2",
     "openai": "^7.1.0",

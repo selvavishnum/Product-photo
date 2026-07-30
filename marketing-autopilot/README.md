@@ -32,7 +32,8 @@ side of this app (this repo, today) works without either.
 | `POST /api/v1/ad/generate` — targeting + multilingual copy | done |
 | Encrypted-at-rest OAuth token storage (AES-256-GCM) | helper done, OAuth flow not built |
 | Web UI | done |
-| Meta / Google campaign submission | **not built** — see above |
+| Meta publish workflow (`services/metaAds.ts`) | code done, **untested against live API** |
+| Google Ads submission | **not built** |
 | Redis/BullMQ queue | dependency added, no workers yet |
 | Auth | **not built** — no login; do not deploy publicly as-is |
 
@@ -192,3 +193,61 @@ Queued rather than inline: the render is ~150ms but the upload is
 unpredictable, and a user clicking "generate" should not hold a connection
 open for it. Concurrency 4 — each job holds a full-size bitmap, so raise it
 only alongside the memory limit.
+
+
+## Meta publishing (`src/services/metaAds.ts`)
+
+`publishMetaAdCampaign()` does campaign → ad set → image → creative → ad in one
+call. Enum values were read from the installed SDK (v24 / Graph v24.0), not
+recalled.
+
+### Prerequisites that are not code
+
+- **A Facebook Page.** A creative's `object_story_spec` requires `page_id`.
+  There is no way to run an ad without a Page.
+- **App Review for `ads_management` + Business Verification.** Before that,
+  your token only works on ad accounts you personally admin.
+- **A WhatsApp number connected to the Page** if you use `WHATSAPP_MESSAGE`.
+
+### Safety defaults
+
+- **Campaigns are created PAUSED** unless `activate: true` is passed
+  explicitly. Creating ACTIVE starts spending immediately.
+- **The token is validated first** — an expired token otherwise surfaces
+  halfway through, after a campaign already exists.
+- **Partial failures roll back.** Everything created is tracked and deleted on
+  error. A half-built campaign is worse than none: invisible in our database,
+  visible in Ads Manager, and activatable by accident.
+- **Budget is passed as minor units** (paise), matching what the schema stores.
+
+### Policy rejection is asynchronous — the important caveat
+
+`publishMetaAdCampaign()` returning successfully means **accepted for review**,
+not approved. Ads enter `PENDING_REVIEW` and the verdict lands minutes to hours
+later.
+
+So policy handling has two halves:
+
+1. **Synchronous** — some violations are rejected at creation. `MetaApiError`
+   carries `isPolicy`, plus Meta's `error_user_msg` / `error_user_title`
+   (the text Meta intends the advertiser to read) and `fbtrace_id` for support.
+2. **Asynchronous** — `checkAdPolicyStatus(token, adId)` re-reads
+   `effective_status` and `ad_review_feedback`. Poll it from a scheduled job.
+   An ad that publishes cleanly can still be `DISAPPROVED` an hour later.
+
+### Objective → delivery pairing
+
+Meta validates the combination and rejects mismatches, so it is a lookup table
+rather than assembled at the call site:
+
+| Objective | CTA | optimization_goal | destination_type |
+|---|---|---|---|
+| OUTCOME_TRAFFIC | any | LINK_CLICKS | — |
+| OUTCOME_LEADS | WHATSAPP_MESSAGE | CONVERSATIONS | WHATSAPP |
+| OUTCOME_LEADS | CALL_NOW | QUALITY_CALL | PHONE_CALL |
+
+Also: `standard_enhancements` is set to `OPT_OUT`, so Meta does not silently
+crop or restyle the poster — which would wreck carefully laid-out Tamil text.
+
+**Not yet tested against the live API.** It typechecks and every enum resolves
+against the installed SDK, but no call has been made to Meta.
