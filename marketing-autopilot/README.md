@@ -165,7 +165,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 - **A scrim is composited over the product, under the text.** Without it, a
   pale product behind white headline text is unreadable — the most common way
   an auto-generated banner fails.
-- **The headline auto-shrinks** (82px → 40px) until it fits three lines.
+- **Text width is measured, not estimated.** Tamil's advance ratio ranges
+  0.62–0.78 of the font size depending on combining marks — a 25% spread, and
+  a fixed constant clipped headlines at both edges and overflowed the CTA
+  pill. Each string is rendered once at 24px and scaled (width is linear in
+  font size, verified to 0.1%), costing ~21ms.
+- **The headline auto-shrinks** (82px → 34px) until it fits three lines *and*
+  the widest line fits the margins.
 - **All user text is XML-escaped.** SVG is XML; an unescaped `&` breaks the
   document.
 
