@@ -1,6 +1,41 @@
 import type { Metadata } from 'next';
+import { Inter, Noto_Sans_Tamil, Plus_Jakarta_Sans } from 'next/font/google';
 
 import './globals.css';
+
+/**
+ * Fonts are self-hosted by next/font at build time, not fetched from Google
+ * at runtime. That matters for this audience specifically: the pages load on
+ * patchy mobile connections, and a runtime font request is one more thing
+ * that can hang before any text appears.
+ *
+ * `display: 'swap'` for the same reason -- text in a fallback face beats no
+ * text at all.
+ */
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['700', '800'],
+  variable: '--font-jakarta',
+  display: 'swap',
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+/**
+ * Tamil has no fallback worth relying on. Without this the script renders in
+ * whatever the device happens to have, which on a cheap Android phone is
+ * often nothing -- and missing glyphs are silent, so the page looks fine in
+ * testing and shows boxes to the person it was built for.
+ */
+const notoTamil = Noto_Sans_Tamil({
+  subsets: ['tamil'],
+  variable: '--font-noto-tamil',
+  display: 'swap',
+});
 
 /**
  * SEO metadata is not decoration here. This product has to be findable by
@@ -25,8 +60,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-ink text-slate-100 antialiased">
+    <html
+      lang="en"
+      className={`${jakarta.variable} ${inter.variable} ${notoTamil.variable}`}
+    >
+      <body className="min-h-screen bg-ink font-sans text-slate-100 antialiased">
         {children}
       </body>
     </html>

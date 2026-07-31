@@ -43,7 +43,7 @@ export default function LandingPage() {
         <Link
           href="/create"
           role="button"
-          className="mt-9 inline-flex items-center rounded-2xl bg-brand px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand/25 hover:opacity-90"
+          className="mt-9 inline-flex items-center rounded-2xl bg-gradient-to-r from-brand to-accent px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand/25 hover:opacity-90"
         >
           Make my ad
         </Link>
