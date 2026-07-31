@@ -1,92 +1,90 @@
-# Ad Auto-Pilot — web front end
+# Ad Auto-Pilot — web app
 
-Next.js 16 (App Router) front end: a landing page and a three-step campaign
-wizard. Talks to the Express API in `../` through a same-origin rewrite, so
-the browser never sees the API's address and there is no CORS to configure.
+Next.js 16 (App Router): a landing page, a three-step campaign wizard, and
+the ad-generation endpoint they call.
 
-## Where it runs
-
-- **This front end: Vercel.** Both pages prerender to static HTML and are
-  served from the CDN, so there is no cold start.
-- **The API: Render** (`../../render.yaml`). Free plan, so it stops after 15
-  minutes idle and takes roughly 50 seconds to boot again.
-
-That split is the reason for `app/warm-api.tsx`: the page appears instantly
-but the API behind it may be asleep, so the app pings `/api/warmup` on mount
-and spends the boot against time the user is already using — reading the
-landing page, then filling in the form.
+**This deploys as one thing.** There is no separate API service behind it.
 
 ## Deploying to Vercel
 
 1. Vercel dashboard → **Add New** → **Project** → import this repo.
-2. **Root Directory: `marketing-autopilot/web`.** This is the setting that
-   matters most. The repo has several `package.json` files, and pointing
-   Vercel at the repo root makes it build the wrong thing.
+2. **Root Directory: `marketing-autopilot/web`.**
+
+   This is the setting that matters most and the one that causes
+   `404: NOT_FOUND` on every path. The repo has several `package.json` files
+   and no app at its root, so pointing Vercel at the repo root builds
+   something with no pages in it — which deploys successfully and then 404s.
 3. Framework preset should auto-detect as **Next.js**. Leave the build and
    install commands alone.
-4. **Environment Variables** → add:
+4. **Environment Variables:**
 
-   | Name | Value |
-   |---|---|
-   | `API_ORIGIN` | `https://<your-api>.onrender.com` |
+   | Name | Required | Value |
+   |---|---|---|
+   | `GEMINI_API_KEY` | **yes** | Your key from [Google AI Studio](https://aistudio.google.com/apikey) |
+   | `GEMINI_MODEL` | no | Defaults to `gemini-flash-latest` |
+   | `MAX_DAILY_BUDGET_INR` | no | Defaults to `5000` |
 
-   Take the value from Render → `adpilot-api` → the URL at the top of the
-   service page. A bare hostname works too — `next.config.ts` adds the
-   scheme — but the full URL is clearer.
+   Add them to **Production, Preview and Development**. Setting a variable on
+   Preview only means it goes missing the moment you merge to `main`.
 5. Deploy.
 
-### `API_ORIGIN` is read at build time, not at runtime
+That is the whole list. `API_ORIGIN` is gone — it existed to point at a
+separate Express service, and there isn't one any more.
 
-`rewrites()` in `next.config.ts` is evaluated during `next build` and
-serialised into `.next/routes-manifest.json`. Verified, not assumed:
+## Why there is no separate API
 
-```
-$ API_ORIGIN=adpilot-api.onrender.com npx next build
-$ jq '.rewrites.afterFiles' .next/routes-manifest.json
-[
-  { "source": "/api/warmup",  "destination": "https://adpilot-api.onrender.com/health" },
-  { "source": "/api/:path*",  "destination": "https://adpilot-api.onrender.com/api/:path*" }
-]
-```
+`/api/v1/ad/generate` only calls Gemini. No image processing, no database, no
+ad platform — so there is nothing it needs that a serverless function cannot
+provide. Running it here means one deploy, one place to set the API key, and
+no cold-start wait from a sleeping free-tier backend.
 
-So **changing `API_ORIGIN` in the Vercel dashboard does nothing until you
-redeploy.** If the wizard returns "Could not reach the server" after you have
-fixed the variable, that is why.
-
-Forgetting the variable entirely is worse than an error: the build falls back
-to `http://localhost:8080` and deploys happily, and the site only fails when
-someone presses "Make my ad".
+The Express app in `../` is still where **poster rendering** (Sharp, and Tamil
+text shaped through librsvg/Pango) and **Meta publishing** live. Those do need
+a long-lived server with system fonts installed, and get deployed separately
+when they are wired up. Until then, a rewrite pointing at a service that may
+not exist is a failure waiting to happen, not future-proofing.
 
 ## Running locally
 
 ```bash
 npm install
-API_ORIGIN=http://localhost:8080 npm run dev   # with the API running in ../
+GEMINI_API_KEY=... npm run dev
 ```
 
-`API_ORIGIN` defaults to `http://localhost:8080`, which matches the API's
-default port, so plain `npm run dev` works if the API is running locally.
+Without the key the wizard reaches step 3 and returns
+`500 GEMINI_API_KEY is not set on the server` — deliberately a 500, since the
+caller did nothing wrong.
 
 ## Structure
 
 ```
 web/
 ├── app/
-│   ├── layout.tsx        # Shell, fonts, metadata
-│   ├── page.tsx          # Landing page (server component)
-│   ├── create/page.tsx   # The three-step wizard (client component)
-│   ├── warm-api.tsx      # Wakes the API in the background, renders nothing
-│   └── globals.css       # Tailwind v4 theme (CSS-first, no config file)
-└── next.config.ts        # /api/* rewrite to the Express API
+│   ├── layout.tsx                    # Shell, fonts, metadata
+│   ├── page.tsx                      # Landing page
+│   ├── create/page.tsx               # Three-step wizard
+│   ├── api/v1/ad/generate/route.ts   # The endpoint the wizard calls
+│   └── globals.css                   # Tailwind v4 theme (@theme, no config file)
+├── lib/adPlan.ts                     # Gemini call, prompt and output schema
+└── next.config.ts
 ```
+
+`lib/adPlan.ts` is a deliberate port of `../src/services/adCopy.ts`, not an
+import of it: that file belongs to a separate npm package with its own build,
+its own Prisma client and a `config/env.ts` that throws at import time, none
+of which this route needs. **If the prompt or the schema changes, change it in
+both places.**
 
 Tailwind v4 is configured in CSS via `@theme` in `globals.css` — there is
 deliberately no `tailwind.config.js`.
 
 ## Known gaps
 
-There is **no authentication**. Anyone who has the URL can spend Gemini
-quota through it. `MAX_DAILY_BUDGET_INR` caps what a campaign can request but
-does not cap how many times the generate endpoint can be called. Treat a
-public deploy as a demo, and put auth in front of it before it is anything
-more than that.
+There is **no authentication**. Anyone with the URL can spend your Gemini
+quota. `MAX_DAILY_BUDGET_INR` caps what a single campaign may request; it does
+not cap how many times the endpoint can be called. Treat a public deploy as a
+demo and put auth in front of it before it is anything more than that.
+
+Nothing is ever published to an ad platform from here. The endpoint only
+proposes a plan — publishing is a separate, explicitly-confirmed step that is
+not built yet.
