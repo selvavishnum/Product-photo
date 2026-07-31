@@ -46,6 +46,14 @@ interface GenerateResponse {
   note: string;
 }
 
+interface PublishResponse {
+  adId: string;
+  campaignId: string;
+  effectiveStatus: string;
+  matchedLocation: string | null;
+  note: string;
+}
+
 const BUDGETS = [
   { inr: 150, label: 'Small', hint: 'Try it out for a few days' },
   { inr: 300, label: 'Steady', hint: 'Most local shops start here' },
@@ -66,6 +74,11 @@ export default function CreatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResponse | null>(null);
+
+  const [passcode, setPasscode] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [published, setPublished] = useState<PublishResponse | null>(null);
 
   const step1Valid =
     businessName.trim().length > 0 &&
@@ -107,6 +120,61 @@ export default function CreatePage() {
       setError('Could not reach the server. Check your connection.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  /**
+   * Sends the reviewed plan to Meta.
+   *
+   * The plan travels back to the server rather than being held there between
+   * the two steps: with one shop and no database, a round trip is simpler
+   * than a session store. The server re-checks the budget ceiling on arrival,
+   * so nothing here can raise its own spending limit by editing the payload.
+   */
+  async function publish() {
+    if (!result || !image) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const form = new FormData();
+      form.set(
+        'plan',
+        JSON.stringify({
+          businessName,
+          language,
+          dailyBudgetInr: result.input.dailyBudgetInr,
+          targeting: result.plan.targeting,
+          copies: result.plan.copies,
+        }),
+      );
+      form.set('image', image);
+
+      const res = await fetch('/api/v1/campaign/publish', {
+        method: 'POST',
+        headers: { 'x-owner-passcode': passcode },
+        body: form,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const detail = Array.isArray(data?.error?.details)
+          ? data.error.details[0]?.message
+          : undefined;
+        setPublishError(
+          // A policy rejection is Meta's own wording about what to change, so
+          // it is shown as-is rather than replaced with something generic.
+          data?.error?.isPolicy
+            ? `Facebook rejected this ad: ${data.error.message}`
+            : (detail ?? data?.error?.message ?? 'Could not publish.'),
+        );
+        return;
+      }
+
+      setPublished(data as PublishResponse);
+    } catch {
+      setPublishError('Could not reach the server. Check your connection.');
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -281,18 +349,71 @@ export default function CreatePage() {
             </p>
           </div>
 
-          {/* Honest about the current state: publishing needs a connected Meta
-              account, which is not built yet. Better a plain sentence than a
-              button that fails. */}
-          <div className="mt-5 rounded-2xl border border-amber-900/50 bg-amber-950/30 p-4 text-sm text-amber-200">
-            Nothing has been published. To put this live you need your own
-            Facebook ad account connected — that step is coming next.
-          </div>
+          {published ? (
+            <div className="mt-5 rounded-2xl border border-emerald-900/60 bg-emerald-950/30 p-5 text-sm">
+              <h3 className="font-semibold text-emerald-300">
+                Sent to Facebook — paused
+              </h3>
+              <p className="mt-2 text-emerald-100/80">{published.note}</p>
+              {published.matchedLocation && (
+                <p className="mt-2 text-emerald-100/60">
+                  Meta matched your area to{' '}
+                  <strong>{published.matchedLocation}</strong>.
+                </p>
+              )}
+              <a
+                href="https://adsmanager.facebook.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-block rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white hover:opacity-90"
+              >
+                Open Ads Manager
+              </a>
+            </div>
+          ) : (
+            <div className="mt-5 rounded-2xl border border-line bg-surface/40 p-5">
+              <h3 className="font-semibold">Put this live</h3>
+              <p className="mt-2 text-sm text-slate-400">
+                This creates the campaign on Facebook and leaves it{' '}
+                <strong className="text-slate-200">paused</strong>. Nothing
+                spends until you switch it on in Ads Manager yourself.
+              </p>
+
+              {!image && (
+                <p className="mt-3 text-sm text-amber-300">
+                  Facebook needs a product photo for the ad. Go back to step 1
+                  and add one.
+                </p>
+              )}
+
+              <Field label="Owner passcode" tamil="உரிமையாளர் கடவுச்சொல்">
+                <input
+                  className={inputClass}
+                  type="password"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  placeholder="••••••••"
+                />
+                <Hint>Only you should be able to spend your ad budget.</Hint>
+              </Field>
+
+              {publishError && <ErrorBox>{publishError}</ErrorBox>}
+
+              <Primary
+                disabled={publishing || !image || passcode.length === 0}
+                onClick={publish}
+              >
+                {publishing ? 'Sending to Facebook…' : 'Send to Facebook'}
+              </Primary>
+            </div>
+          )}
 
           <button
             type="button"
             onClick={() => {
               setResult(null);
+              setPublished(null);
+              setPublishError(null);
               setStep(1);
             }}
             className="mt-6 w-full rounded-2xl border border-line py-3 text-slate-300 hover:border-slate-600"
