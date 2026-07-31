@@ -10,82 +10,73 @@ import Link from 'next/link';
  */
 export default function LandingPage() {
   return (
-    <main>
-      <nav className="flex items-center justify-between border-b border-line px-6 py-5">
-        <span className="text-lg font-semibold">Ad Auto-Pilot</span>
-        <Link
-          href="/create"
-          role="button"
-          className="inline-flex items-center rounded-xl bg-brand px-5 py-2.5 font-medium text-white hover:opacity-90"
-        >
-          Start free
-        </Link>
+    <main className="mx-auto max-w-md px-5">
+      <nav className="flex items-center justify-between py-5">
+        <span className="font-display text-base font-bold">Ad Auto-Pilot</span>
       </nav>
 
-      <section className="mx-auto max-w-3xl px-6 pt-16 pb-14 text-center">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+      <section className="pt-10 pb-12">
+        <h1 className="text-4xl font-extrabold leading-[1.15] tracking-tight">
           Ads for your shop, without the jargon
         </h1>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-slate-400">
-          Tell us what you sell. You get a ready-made poster, ad text in Tamil
-          or English, and a plan for who should see it nearby.
+        <p className="mt-4 text-lg text-muted">
+          Tell us what you sell. You get ad text in Tamil or English, ready to
+          share — and a plan for who should see it nearby.
         </p>
-        <p className="mt-3 text-slate-500">
+        <p className="mt-3 text-muted">
           உங்கள் கடைக்கான விளம்பரம் — தமிழிலோ ஆங்கிலத்திலோ
         </p>
 
         <Link
           href="/create"
           role="button"
-          className="mt-9 inline-flex items-center rounded-2xl bg-gradient-to-r from-brand to-accent px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand/25 hover:opacity-90"
+          className="mt-9 flex w-full items-center justify-center gap-3 rounded-full bg-ink px-8 py-4 text-base font-semibold text-white transition hover:opacity-85"
         >
           Make my ad
+          <span aria-hidden>→</span>
         </Link>
-        <p className="mt-4 text-sm text-slate-500">
-          Free to try. Nothing is published until you say so.
+        <p className="mt-3 text-center text-sm text-faint">
+          Free. Nothing is published until you say so.
         </p>
       </section>
 
-      <section className="mx-auto max-w-4xl border-t border-line/60 px-6 py-14">
-        <h2 className="mb-9 text-center text-2xl font-semibold">
-          Three steps
-        </h2>
-        <ol className="grid gap-5 sm:grid-cols-3">
+      <section className="border-t border-line py-12">
+        <h2 className="mb-7 text-xl font-bold">How it works</h2>
+        <ol className="grid gap-7">
           {[
             {
               n: '1',
-              title: 'Describe your shop',
-              body: 'Your shop name, what you sell, and a product photo.',
+              title: 'Answer a few questions',
+              body: 'Your shop, what you sell, and where you are.',
             },
             {
               n: '2',
-              title: 'Pick a daily budget',
-              body: 'Choose an amount. We suggest how far around you to advertise.',
+              title: 'Get your ad',
+              body: 'Written the way a shop owner speaks, in your language.',
             },
             {
               n: '3',
-              title: 'Check and publish',
-              body: 'See the poster and the words before anything goes live.',
+              title: 'Share it, or run it',
+              body: 'Send it to WhatsApp for free, or pay to reach people nearby.',
             },
           ].map((s) => (
-            <li
-              key={s.n}
-              className="rounded-2xl border border-line/70 bg-surface/60 p-6"
-            >
-              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft/50 font-bold text-brand">
+            <li key={s.n} className="flex gap-4">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-bold text-white">
                 {s.n}
               </span>
-              <h3 className="font-semibold">{s.title}</h3>
-              <p className="mt-1 text-sm text-slate-400">{s.body}</p>
+              <span>
+                <h3 className="font-bold">{s.title}</h3>
+                <p className="mt-0.5 text-sm text-muted">{s.body}</p>
+              </span>
             </li>
           ))}
         </ol>
       </section>
 
-      <footer className="border-t border-line/60 px-6 py-8 text-center text-sm text-slate-500">
+      <footer className="border-t border-line py-8 text-sm text-faint">
         <p>
-          Publishing to Facebook and Instagram needs your own Meta ad account
-          connected. Google Ads is not supported yet.
+          Sharing works straight away. Running a paid ad needs your own
+          Facebook ad account connected. Google Ads is not supported yet.
         </p>
       </footer>
     </main>

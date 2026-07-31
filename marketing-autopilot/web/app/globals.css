@@ -4,31 +4,36 @@
    of tokens the whole UI reuses, rather than a palette nobody can hold in
    their head.
 
-   Values follow the product design system (Tailwind's own Slate/Indigo/Cyan
-   ramps), so anything not tokenised here can still reach for a stock
-   `slate-*` class and stay in the same family. */
+   Light and near-monochrome on purpose. The audience is shop owners reading
+   this on a phone, often outdoors in daylight, where a dark UI is the harder
+   one to read. Colour is spent only where it carries meaning -- a selected
+   answer, a warning, a success -- so those actually stand out instead of
+   competing with decoration. */
 @theme {
-  /* Page background — Slate 900. */
-  --color-ink: #0f172a;
-  /* Cards and inputs — Slate 800. One step up from the page, which is what
-     separates a surface from the background without needing a border. */
-  --color-surface: #1e293b;
-  /* Hairlines — Slate 700. Between the surface and the muted text, so a
-     border reads as an edge rather than as another surface. */
-  --color-line: #334155;
+  /* Page. Plain white, not off-white: anything tinted reads as "unfinished"
+     next to the white cards sitting on it. */
+  --color-page: #ffffff;
+  /* Cards and inputs. A hair off the page so an edge is visible without a
+     border doing all the work. */
+  --color-surface: #f7f7f8;
+  --color-line: #e5e7eb;
+  /* Borders on something already selected or focused. */
+  --color-line-strong: #0a0a0a;
 
-  /* Primary action — Indigo 500. */
-  --color-brand: #6366f1;
-  /* Tinted fill behind a selected card — Indigo 900. Not the primary at low
-     opacity: that greys out over a dark page instead of staying indigo. */
-  --color-brand-soft: #312e81;
+  /* Text. Near-black rather than pure black: #000 on #fff is harsher than it
+     needs to be at body sizes. */
+  --color-ink: #0a0a0a;
+  --color-muted: #6b7280;
+  --color-faint: #9ca3af;
 
-  /* Secondary accent — Cyan 500. Reserved for gradients and highlights so it
-     never competes with the primary for "this is the button". */
-  --color-accent: #06b6d4;
+  /* The single accent, used for progress and selection. */
+  --color-brand: #4f46e5;
+  --color-brand-soft: #eef2ff;
 
-  /* Live / confirmed — Emerald 500. */
-  --color-success: #10b981;
+  --color-success: #059669;
+  --color-success-soft: #ecfdf5;
+  --color-warn: #b45309;
+  --color-warn-soft: #fffbeb;
 
   /* Fonts are loaded by next/font in layout.tsx, which exposes them as CSS
      variables; these bind them to Tailwind's font utilities.
@@ -45,15 +50,15 @@ html {
   /* Tamil needs more line height than Latin: its combining marks sit well
      above and below the baseline and collide at normal leading. */
   line-height: 1.7;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Headings take the display face; body text stays on Inter, which is the
    more legible of the two at small sizes.
 
    No letter-spacing here on purpose. The headings already carry Tailwind's
-   `tracking-tight` (-0.025em), and adding more compounded into words running
-   together -- "Tell us about your shop" read as one string. Tracking stays
-   with the component that sets the size. */
+   `tracking-tight`, and adding more compounded into words running together --
+   "Tell us about your shop" read as one string. */
 h1, h2, h3 {
   font-family: var(--font-display);
 }
@@ -62,4 +67,9 @@ h1, h2, h3 {
    one-handed behind a counter. */
 button, a[role="button"], input, select, textarea {
   min-height: 48px;
+}
+
+/* iOS zooms the page when a focused input is under 16px. */
+input, select, textarea {
+  font-size: 16px;
 }
