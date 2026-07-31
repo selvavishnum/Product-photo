@@ -3,8 +3,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import WarmApi from '../warm-api';
-
 /**
  * The campaign wizard.
  *
@@ -114,11 +112,6 @@ export default function CreatePage() {
 
   return (
     <main className="mx-auto max-w-xl px-5 pt-6 pb-24">
-      {/* Backstop for arriving here directly, without passing the landing
-          page's warm-up. Mounting it twice is harmless -- the second fetch
-          hits an API that is already awake. */}
-      <WarmApi />
-
       <header className="mb-7 flex items-center justify-between">
         <Link href="/" className="text-sm text-slate-400 hover:text-slate-200">
           ← Back
