@@ -41,6 +41,15 @@ dependencies:
   flutter_onnxruntime: ^1.8.3
   # Pure-Dart decode/resize/composite/encode for the post-processing stages.
   image: ^4.9.1
+  # Native share sheet for handing a finished ad to WhatsApp, Instagram or
+  # anywhere else. API verified against the published package source:
+  # SharePlus.instance.share(ShareParams(...)) -- the static Share.share()
+  # helpers are deprecated in this major version.
+  share_plus: ^13.3.0
+  # The owner passcode authorises spending real ad budget, so it goes in the
+  # Keystore/Keychain rather than SharedPreferences, which is world-readable
+  # on a rooted device.
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:

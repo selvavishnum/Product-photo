@@ -3,25 +3,39 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+import ShareButton from '../share-button';
+import {
+  Choice,
+  Continue,
+  Feedback,
+  Question,
+  StepShell,
+  inputClass,
+} from './step-shell';
+
 /**
  * The campaign wizard.
  *
- * Designed for shop owners, not marketers, so the whole flow is three
- * screens with one decision each. Deliberate choices:
+ * One question per screen. A shop owner filling this in on a phone between
+ * customers can hold one decision at a time; a single long form is where
+ * people give up halfway. The trade is more taps, and it is worth it.
+ *
+ * Other deliberate choices:
  *
  *  - **Budget is preset chips, not a number field.** "How much per day?" as a
- *    free input asks someone to guess a number they have no basis for, and
- *    it is the step where people abandon. Three amounts with a plain-language
- *    consequence is a decision they can actually make.
+ *    free input asks someone to guess a number they have no basis for. Three
+ *    amounts with a plain-language consequence is a decision they can make.
  *  - **No advertising vocabulary.** No objective, optimisation goal, bid
  *    strategy, CPM or impressions anywhere. Those are chosen server-side.
  *  - **Tamil sits alongside English** rather than behind a language toggle,
- *    because the person reading it may be more comfortable in either and
- *    should not have to find a setting first.
- *  - **One primary button per screen.** Back is present but quiet.
+ *    because the person reading may be more comfortable in either and should
+ *    not have to find a setting first.
+ *  - **Sharing comes before publishing.** Handing the ad to WhatsApp works
+ *    today with no ad account; paid publishing needs setup and approval. The
+ *    thing that works is offered first.
  */
 
-type Step = 1 | 2 | 3;
+const TOTAL_STEPS = 6;
 
 interface AdCopy {
   language: string;
@@ -46,31 +60,58 @@ interface GenerateResponse {
   note: string;
 }
 
+interface PublishResponse {
+  adId: string;
+  campaignId: string;
+  effectiveStatus: string;
+  matchedLocation: string | null;
+  note: string;
+}
+
+interface InstagramResponse {
+  postId: string;
+  permalink?: string;
+  note: string;
+}
+
+const LANGUAGES = [
+  { value: 'TAMIL', label: 'தமிழ்', hint: 'Tamil script' },
+  { value: 'TANGLISH', label: 'Tanglish', hint: 'Tamil in English letters' },
+  { value: 'ENGLISH', label: 'English', hint: '' },
+];
+
 const BUDGETS = [
-  { inr: 150, label: 'Small', hint: 'Try it out for a few days' },
-  { inr: 300, label: 'Steady', hint: 'Most local shops start here' },
-  { inr: 600, label: 'Push', hint: 'Festival or opening week' },
+  { inr: 150, label: '₹150 a day', hint: 'Try it for a few days' },
+  { inr: 300, label: '₹300 a day', hint: 'Where most local shops start' },
+  { inr: 600, label: '₹600 a day', hint: 'Festival or opening week' },
 ];
 
 export default function CreatePage() {
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState(1);
 
   const [businessName, setBusinessName] = useState('');
   const [businessCategory, setBusinessCategory] = useState('');
   const [description, setDescription] = useState('');
   const [city, setCity] = useState('');
   const [language, setLanguage] = useState('TAMIL');
-  const [budget, setBudget] = useState(300);
+  const [budget, setBudget] = useState(0);
   const [image, setImage] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResponse | null>(null);
 
-  const step1Valid =
-    businessName.trim().length > 0 &&
-    businessCategory.trim().length > 0 &&
-    description.trim().length >= 10;
+  const [passcode, setPasscode] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [published, setPublished] = useState<PublishResponse | null>(null);
+
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [posted, setPosted] = useState<InstagramResponse | null>(null);
+
+  const back = () => setStep((s) => Math.max(1, s - 1));
+  const next = () => setStep((s) => s + 1);
 
   async function generate() {
     setLoading(true);
@@ -85,10 +126,7 @@ export default function CreatePage() {
       form.set('dailyBudgetInr', String(budget));
       if (image) form.set('image', image);
 
-      const res = await fetch('/api/v1/ad/generate', {
-        method: 'POST',
-        body: form,
-      });
+      const res = await fetch('/api/v1/ad/generate', { method: 'POST', body: form });
       const data = await res.json();
 
       if (!res.ok) {
@@ -102,7 +140,7 @@ export default function CreatePage() {
       }
 
       setResult(data as GenerateResponse);
-      setStep(3);
+      setStep(TOTAL_STEPS + 1);
     } catch {
       setError('Could not reach the server. Check your connection.');
     } finally {
@@ -110,296 +148,483 @@ export default function CreatePage() {
     }
   }
 
+  /**
+   * Sends the reviewed plan to Meta.
+   *
+   * The plan travels back to the server rather than being held there between
+   * the two steps: with one shop and no database, a round trip is simpler
+   * than a session store. The server re-checks the budget ceiling on arrival,
+   * so nothing here can raise its own spending limit by editing the payload.
+   */
+  async function publish() {
+    if (!result || !image) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const form = new FormData();
+      form.set(
+        'plan',
+        JSON.stringify({
+          businessName,
+          language,
+          dailyBudgetInr: result.input.dailyBudgetInr,
+          targeting: result.plan.targeting,
+          copies: result.plan.copies,
+        }),
+      );
+      form.set('image', image);
+
+      const res = await fetch('/api/v1/campaign/publish', {
+        method: 'POST',
+        headers: { 'x-owner-passcode': passcode },
+        body: form,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const detail = Array.isArray(data?.error?.details)
+          ? data.error.details[0]?.message
+          : undefined;
+        setPublishError(
+          // A policy rejection is Meta's own wording about what to change, so
+          // it is shown as-is rather than replaced with something generic.
+          data?.error?.isPolicy
+            ? `Facebook rejected this ad: ${data.error.message}`
+            : (detail ?? data?.error?.message ?? 'Could not publish.'),
+        );
+        return;
+      }
+
+      setPublished(data as PublishResponse);
+    } catch {
+      setPublishError('Could not reach the server. Check your connection.');
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  /**
+   * Posts to the shop's own Instagram feed.
+   *
+   * Free, unlike the paid path below it, but still behind the passcode: it
+   * puts text and a photo publicly under the owner's name, and an open
+   * endpoint that can do that is its own kind of expensive.
+   */
+  async function postToInstagram(copy: AdCopy) {
+    if (!image) return;
+    setPosting(true);
+    setPostError(null);
+    try {
+      const form = new FormData();
+      form.set(
+        'copy',
+        JSON.stringify({
+          headline: copy.headline,
+          primaryText: copy.primaryText,
+          cta: copy.cta,
+        }),
+      );
+      form.set('image', image);
+
+      const res = await fetch('/api/v1/instagram/post', {
+        method: 'POST',
+        headers: { 'x-owner-passcode': passcode },
+        body: form,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPostError(data?.error?.message ?? 'Could not post to Instagram.');
+        return;
+      }
+      setPosted(data as InstagramResponse);
+    } catch {
+      setPostError('Could not reach the server. Check your connection.');
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  function restart() {
+    setResult(null);
+    setPublished(null);
+    setPublishError(null);
+    setPosted(null);
+    setPostError(null);
+    setError(null);
+    setStep(1);
+  }
+
+  /* ---------------- result ---------------- */
+
+  if (result) {
+    const preferred =
+      result.plan.copies.find((c) => c.language === language) ??
+      result.plan.copies[0];
+
+    return (
+      <main className="mx-auto max-w-md px-5 pt-6 pb-16">
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          Your ad is ready
+        </h1>
+        <p className="mt-2 text-lg text-muted">உங்கள் விளம்பரம் தயார்</p>
+
+        {result.plan.copies.map((c, i) => (
+          <article
+            key={i}
+            className="mt-5 rounded-3xl border border-line p-5"
+          >
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
+              {c.language}
+            </p>
+            <h2 className="text-xl font-bold leading-snug">{c.headline}</h2>
+            <p className="mt-2 text-ink/75">{c.primaryText}</p>
+            <span className="mt-4 inline-block rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white">
+              {c.cta}
+            </span>
+          </article>
+        ))}
+
+        {/* First, because it works right now: no ad account, no token, no
+            approval, no money. */}
+        <section className="mt-8">
+          <h2 className="text-lg font-bold">Send it to your customers</h2>
+          <p className="mt-1 text-sm text-muted">
+            WhatsApp, Instagram, your customer group — free, right now.
+          </p>
+          <ShareButton
+            headline={preferred.headline}
+            primaryText={preferred.primaryText}
+            cta={preferred.cta}
+            image={image}
+          />
+        </section>
+
+        {/* Free like sharing, but it publishes rather than hands over, so it
+            sits between the two -- and behind the same passcode as the paid
+            path, because it posts publicly under the owner's name. */}
+        <section className="mt-10">
+          <h2 className="text-lg font-bold">Post it to Instagram</h2>
+          <p className="mt-1 text-sm text-muted">
+            Goes straight to your shop&rsquo;s feed. Free — this is not a paid
+            ad.
+          </p>
+
+          {posted ? (
+            <div className="mt-4 rounded-3xl border border-success/30 bg-success-soft p-5">
+              <p className="font-semibold text-success">{posted.note}</p>
+              {posted.permalink && (
+                <a
+                  href={posted.permalink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-block rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+                >
+                  See the post
+                </a>
+              )}
+            </div>
+          ) : (
+            <>
+              {!image && (
+                <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+                  Instagram needs a photo. Start again and add one.
+                </p>
+              )}
+              {postError && (
+                <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+                  {postError}
+                </p>
+              )}
+              <input
+                className={`${inputClass} mt-4`}
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Owner passcode"
+              />
+              <button
+                type="button"
+                onClick={() => postToInstagram(preferred)}
+                disabled={posting || !image || passcode.length === 0}
+                className="mt-4 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
+              >
+                {posting ? 'Posting…' : 'Post to Instagram'}
+              </button>
+            </>
+          )}
+        </section>
+
+        <section className="mt-10 rounded-3xl bg-surface p-5">
+          <h2 className="font-bold">Who a paid ad would reach</h2>
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <dt className="text-muted">Age</dt>
+            <dd>
+              {result.plan.targeting.ageMin}–{result.plan.targeting.ageMax}
+            </dd>
+            <dt className="text-muted">Area</dt>
+            <dd>
+              {result.plan.targeting.locationName} ·{' '}
+              {result.plan.targeting.locationRadiusKm} km around you
+            </dd>
+            <dt className="text-muted">Budget</dt>
+            <dd>₹{result.input.dailyBudgetInr} per day</dd>
+          </dl>
+          <p className="mt-3 text-sm text-muted">
+            {result.plan.targeting.rationale}
+          </p>
+        </section>
+
+        {published ? (
+          <section className="mt-5 rounded-3xl border border-success/30 bg-success-soft p-5">
+            <h2 className="font-bold text-success">Sent to Facebook — paused</h2>
+            <p className="mt-2 text-sm text-ink/75">{published.note}</p>
+            {published.matchedLocation && (
+              <p className="mt-2 text-sm text-muted">
+                Meta matched your area to{' '}
+                <strong className="text-ink">{published.matchedLocation}</strong>.
+              </p>
+            )}
+            <a
+              href="https://adsmanager.facebook.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-block rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+            >
+              Open Ads Manager
+            </a>
+          </section>
+        ) : (
+          <section className="mt-5 rounded-3xl border border-line p-5">
+            <h2 className="font-bold">Or run it as a paid ad</h2>
+            <p className="mt-2 text-sm text-muted">
+              This creates the campaign on Facebook and leaves it{' '}
+              <strong className="text-ink">paused</strong>. Nothing spends
+              until you switch it on yourself.
+            </p>
+
+            {!image && (
+              <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+                Facebook needs a product photo for a paid ad. Start again and
+                add one.
+              </p>
+            )}
+
+            {/* Shown only when the Instagram section above has not already
+                asked for it -- one passcode, two uses, but two boxes on the
+                same screen reads like two different secrets. */}
+            {!posted && (
+              <p className="mt-4 text-xs text-faint">
+                Uses the same owner passcode as above.
+              </p>
+            )}
+            {posted && (
+              <input
+                className={`${inputClass} mt-4`}
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Owner passcode"
+              />
+            )}
+
+            {publishError && (
+              <p className="mt-4 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+                {publishError}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={publish}
+              disabled={publishing || !image || passcode.length === 0}
+              className="mt-5 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
+            >
+              {publishing ? 'Sending to Facebook…' : 'Send to Facebook'}
+            </button>
+          </section>
+        )}
+
+        <button
+          type="button"
+          onClick={restart}
+          className="mt-8 w-full rounded-full border border-line px-6 py-4 text-muted transition hover:border-faint"
+        >
+          Make another ad
+        </button>
+      </main>
+    );
+  }
+
+  /* ---------------- questions ---------------- */
+
   return (
-    <main className="mx-auto max-w-xl px-5 pt-6 pb-24">
-      <header className="mb-7 flex items-center justify-between">
-        <Link href="/" className="text-sm text-slate-400 hover:text-slate-200">
-          ← Back
-        </Link>
-        <Progress step={step} />
-      </header>
-
+    <StepShell
+      step={step}
+      total={TOTAL_STEPS}
+      onBack={step === 1 ? undefined : back}
+    >
       {step === 1 && (
-        <section>
-          <H1>Tell us about your shop</H1>
-          <Sub>உங்கள் கடையைப் பற்றி சொல்லுங்கள்</Sub>
+        <>
+          <Question title="What is your shop called?" tamil="கடையின் பெயர்?" />
+          <input
+            className={inputClass}
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            placeholder="Sri Lakshmi Jewellers"
+            autoFocus
+          />
+          <Continue onClick={next} disabled={businessName.trim().length === 0} />
+          <p className="mt-6 text-center text-sm">
+            <Link href="/" className="text-muted underline">
+              Back to start
+            </Link>
+          </p>
+        </>
+      )}
 
-          <Field label="Shop name" tamil="கடையின் பெயர்">
-            <input
-              className={inputClass}
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              placeholder="Sri Lakshmi Jewellers"
-            />
-          </Field>
+      {step === 2 && (
+        <>
+          <Question title="What do you sell?" tamil="என்ன விற்கிறீர்கள்?" />
+          <input
+            className={inputClass}
+            value={businessCategory}
+            onChange={(e) => setBusinessCategory(e.target.value)}
+            placeholder="Jewellery shop"
+            autoFocus
+          />
+          <Continue
+            onClick={next}
+            disabled={businessCategory.trim().length === 0}
+          />
+        </>
+      )}
 
-          <Field label="What do you sell?" tamil="என்ன விற்கிறீர்கள்?">
-            <input
-              className={inputClass}
-              value={businessCategory}
-              onChange={(e) => setBusinessCategory(e.target.value)}
-              placeholder="Jewellery shop"
-            />
-          </Field>
-
-          <Field
-            label="What do you want to advertise?"
+      {step === 3 && (
+        <>
+          <Question
+            title="What do you want to advertise?"
             tamil="எதை விளம்பரப்படுத்த வேண்டும்?"
           >
-            <textarea
-              className={`${inputClass} min-h-28`}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Bridal sets and daily-wear gold chains. We want more customers for the wedding season."
-            />
-            <Hint>
-              {description.trim().length < 10
-                ? 'A sentence or two is enough.'
-                : 'Good — the more detail, the better the ad.'}
-            </Hint>
-          </Field>
+            A sentence or two. The more you say, the better the ad.
+          </Question>
+          <textarea
+            className={`${inputClass} min-h-36`}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Bridal sets and daily-wear gold chains. We want more customers for the wedding season."
+            autoFocus
+          />
+          {description.trim().length >= 10 && (
+            <Feedback>
+              Good. We will write the ad from this and invent nothing you have
+              not said.
+            </Feedback>
+          )}
+          <Continue onClick={next} disabled={description.trim().length < 10} />
+        </>
+      )}
 
-          <Field label="Town or city" tamil="ஊர்" optional>
-            <input
-              className={inputClass}
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Thuckalay"
-            />
-            <Hint>Helps us advertise only to people nearby.</Hint>
-          </Field>
+      {step === 4 && (
+        <>
+          <Question title="Which town are you in?" tamil="எந்த ஊர்?">
+            We advertise only to people near you.
+          </Question>
+          <input
+            className={inputClass}
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="Thuckalay"
+            autoFocus
+          />
+          {city.trim().length > 0 && (
+            <Feedback>
+              Your ad will go to people around {city.trim()}, not the whole
+              state — a small budget spread wide reaches nobody often enough.
+            </Feedback>
+          )}
+          <Continue onClick={next} disabled={city.trim().length === 0} />
+        </>
+      )}
 
-          <Field label="Product photo" tamil="பொருள் புகைப்படம்" optional>
+      {step === 5 && (
+        <>
+          <Question
+            title="Which language?"
+            tamil="எந்த மொழி?"
+          >
+            Whatever your customers read most comfortably.
+          </Question>
+          <div className="grid gap-3">
+            {LANGUAGES.map((l) => (
+              <Choice
+                key={l.value}
+                label={l.label}
+                hint={l.hint}
+                selected={language === l.value}
+                onSelect={() => setLanguage(l.value)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-8">
+            <p className="mb-2 font-semibold">
+              Product photo{' '}
+              <span className="font-normal text-faint">· optional</span>
+            </p>
             <input
               className={inputClass}
               type="file"
               accept="image/*"
               onChange={(e) => setImage(e.target.files?.[0] ?? null)}
             />
-          </Field>
-
-          <Primary disabled={!step1Valid} onClick={() => setStep(2)}>
-            Next
-          </Primary>
-          {!step1Valid && (
-            <Hint center>Fill in the first three to continue.</Hint>
-          )}
-        </section>
-      )}
-
-      {step === 2 && (
-        <section>
-          <H1>How much per day?</H1>
-          <Sub>ஒரு நாளைக்கு எவ்வளவு?</Sub>
-
-          <div className="mt-6 grid gap-3">
-            {BUDGETS.map((b) => (
-              <button
-                key={b.inr}
-                type="button"
-                onClick={() => setBudget(b.inr)}
-                className={`flex items-center justify-between rounded-2xl border p-5 text-left transition ${
-                  budget === b.inr
-                    ? 'border-brand bg-brand-soft/30'
-                    : 'border-line bg-surface/50 hover:border-slate-600'
-                }`}
-              >
-                <span>
-                  <span className="block font-semibold">₹{b.inr} / day</span>
-                  <span className="text-sm text-slate-400">{b.hint}</span>
-                </span>
-                <span className="text-sm text-slate-500">{b.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <Field label="Ad language" tamil="விளம்பர மொழி">
-            <select
-              className={inputClass}
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-            >
-              <option value="TAMIL">தமிழ் / Tamil</option>
-              <option value="TANGLISH">Tanglish</option>
-              <option value="ENGLISH">English</option>
-            </select>
-          </Field>
-
-          {error && <ErrorBox>{error}</ErrorBox>}
-
-          <Primary disabled={loading} onClick={generate}>
-            {loading ? 'Writing your ad…' : 'Make my ad'}
-          </Primary>
-          <button
-            type="button"
-            onClick={() => setStep(1)}
-            className="mt-3 w-full text-sm text-slate-500 hover:text-slate-300"
-          >
-            Back
-          </button>
-        </section>
-      )}
-
-      {step === 3 && result && (
-        <section>
-          <H1>Here is your ad</H1>
-          <Sub>உங்கள் விளம்பரம் தயார்</Sub>
-
-          {result.plan.copies.map((c, i) => (
-            <article
-              key={i}
-              className="mt-5 rounded-2xl border border-line bg-surface/60 p-5"
-            >
-              <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">
-                {c.language}
-              </p>
-              <h3 className="text-lg font-semibold">{c.headline}</h3>
-              <p className="mt-2 text-slate-300">{c.primaryText}</p>
-              <span className="mt-4 inline-block rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white">
-                {c.cta}
-              </span>
-            </article>
-          ))}
-
-          <div className="mt-5 rounded-2xl border border-line bg-surface/40 p-5">
-            <h3 className="font-semibold">Who will see this</h3>
-            <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="text-slate-500">Age</dt>
-              <dd>
-                {result.plan.targeting.ageMin}–{result.plan.targeting.ageMax}
-              </dd>
-              <dt className="text-slate-500">Area</dt>
-              <dd>
-                {result.plan.targeting.locationName} ·{' '}
-                {result.plan.targeting.locationRadiusKm} km around you
-              </dd>
-              <dt className="text-slate-500">Budget</dt>
-              <dd>₹{result.input.dailyBudgetInr} per day</dd>
-            </dl>
-            <p className="mt-3 text-sm text-slate-400">
-              {result.plan.targeting.rationale}
+            <p className="mt-1.5 text-xs text-faint">
+              {image
+                ? `${image.name} — you can share this with the ad.`
+                : 'Needed only if you want to run this as a paid Facebook ad.'}
             </p>
           </div>
 
-          {/* Honest about the current state: publishing needs a connected Meta
-              account, which is not built yet. Better a plain sentence than a
-              button that fails. */}
-          <div className="mt-5 rounded-2xl border border-amber-900/50 bg-amber-950/30 p-4 text-sm text-amber-200">
-            Nothing has been published. To put this live you need your own
-            Facebook ad account connected — that step is coming next.
+          <Continue onClick={next} />
+        </>
+      )}
+
+      {step === 6 && (
+        <>
+          <Question title="How much per day?" tamil="ஒரு நாளைக்கு எவ்வளவு?">
+            Only matters if you run a paid ad. Sharing is free.
+          </Question>
+          <div className="grid gap-3">
+            {BUDGETS.map((b) => (
+              <Choice
+                key={b.inr}
+                label={b.label}
+                hint={b.hint}
+                selected={budget === b.inr}
+                onSelect={() => setBudget(b.inr)}
+              />
+            ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setResult(null);
-              setStep(1);
-            }}
-            className="mt-6 w-full rounded-2xl border border-line py-3 text-slate-300 hover:border-slate-600"
-          >
-            Start another
-          </button>
-        </section>
+          {budget > 0 && (
+            <Feedback>
+              We will suggest how far around {city.trim() || 'you'} to
+              advertise based on this. A bigger area needs a bigger budget to
+              work.
+            </Feedback>
+          )}
+
+          {error && (
+            <p className="mt-5 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+              {error}
+            </p>
+          )}
+
+          <Continue onClick={generate} disabled={loading || budget === 0}>
+            {loading ? 'Writing your ad…' : 'Make my ad'}
+          </Continue>
+        </>
       )}
-    </main>
-  );
-}
-
-/* ---------- small presentational pieces ---------- */
-
-const inputClass =
-  'w-full rounded-xl border border-line bg-surface px-4 py-3 text-slate-100 placeholder:text-slate-600 focus:border-brand focus:outline-none';
-
-function H1({ children }: { children: React.ReactNode }) {
-  return <h1 className="text-2xl font-bold tracking-tight">{children}</h1>;
-}
-
-function Sub({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1 text-slate-500">{children}</p>;
-}
-
-function Field({
-  label,
-  tamil,
-  optional,
-  children,
-}: {
-  label: string;
-  tamil: string;
-  optional?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="mt-6 block">
-      <span className="mb-1.5 block text-sm font-medium">
-        {label}{' '}
-        <span className="font-normal text-slate-500">· {tamil}</span>
-        {optional && (
-          <span className="ml-1 text-xs text-slate-600">(optional)</span>
-        )}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function Hint({
-  children,
-  center,
-}: {
-  children: React.ReactNode;
-  center?: boolean;
-}) {
-  return (
-    <p className={`mt-1.5 text-xs text-slate-500 ${center ? 'text-center' : ''}`}>
-      {children}
-    </p>
-  );
-}
-
-function Primary({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      // Indigo into cyan, the two brand accents. The gradient is confined to
-      // the one primary action per screen: used on every button it would stop
-      // signalling which one to press, which is the whole job of a primary.
-      className="mt-8 w-full rounded-2xl bg-gradient-to-r from-brand to-accent py-4 text-lg font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:from-brand disabled:to-brand disabled:opacity-40"
-    >
-      {children}
-    </button>
-  );
-}
-
-function ErrorBox({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mt-5 rounded-xl border border-red-900/60 bg-red-950/40 p-4 text-sm text-red-200">
-      {children}
-    </p>
-  );
-}
-
-function Progress({ step }: { step: Step }) {
-  return (
-    <div className="flex items-center gap-2" aria-label={`Step ${step} of 3`}>
-      {[1, 2, 3].map((n) => (
-        <span
-          key={n}
-          className={`h-1.5 w-8 rounded-full ${
-            n <= step ? 'bg-brand' : 'bg-line'
-          }`}
-        />
-      ))}
-    </div>
+    </StepShell>
   );
 }

@@ -10,6 +10,7 @@ import '../ondevice/fallback_engine.dart';
 import '../ondevice/pipeline.dart';
 import '../ondevice/segmentation_engine.dart';
 import '../services/api_service.dart';
+import '../theme.dart';
 import '../widgets/theme_selector.dart';
 
 enum _Stage { picking, removingBackground, readyForBackdrop, generating, done, error }
@@ -176,9 +177,7 @@ class _StudioScreenState extends State<StudioScreen> {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'e.g. a gold necklace with pearl beads',
-            ),
+            decoration: appInput('e.g. a gold necklace with pearl beads'),
           ),
           actions: [
             TextButton(
@@ -373,10 +372,7 @@ class _StudioScreenState extends State<StudioScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: _promptController,
-                decoration: const InputDecoration(
-                  labelText: 'Or describe your own backdrop',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: appInput('Or describe your own backdrop'),
                 onChanged: (_) => setState(() => _selectedThemeKey = null),
               ),
               const SizedBox(height: 16),

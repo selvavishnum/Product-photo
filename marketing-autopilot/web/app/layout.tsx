@@ -64,7 +64,7 @@ export default function RootLayout({
       lang="en"
       className={`${jakarta.variable} ${inter.variable} ${notoTamil.variable}`}
     >
-      <body className="min-h-screen bg-ink font-sans text-slate-100 antialiased">
+      <body className="min-h-screen bg-page font-sans text-ink antialiased">
         {children}
       </body>
     </html>

@@ -13,20 +13,26 @@ balance.
 
 ## What's here vs. what's not
 
-The app opens into a Photoroom-style bottom nav (`screens/home_shell.dart`):
-**Home**, **AI tools**, **Batch**, **Content**.
+The app opens into a bottom nav (`screens/home_shell.dart`): **Photo**,
+**Tools**, **Ads**, **Daily**.
 
-- **Home** — **White background**: pick a photo, get a marketplace-ready
+- **Photo** — **White background**: pick a photo, get a marketplace-ready
   listing image (pure white, product at 85% of frame, Amazon/Flipkart/Studio
   presets). Runs **entirely on the phone** — free, works offline, and no
   photo leaves the device. See `docs/on-device-architecture.md`.
-- **AI tools** — White background plus the studio flow: pick a theme or type
+- **Tools** — White background plus the studio flow: pick a theme or type
   a prompt → generate a studio backdrop → preview, with "AI Upscale (paid)",
   "Add Shadow" (free, classical), "Virtual Try-On (paid)", and a full photo
   editor ([`pro_image_editor`](https://pub.dev/packages/pro_image_editor):
   crop/rotate, filters, tune/adjust, blur, paint, text, stickers). Editor
   output is forced to PNG so an edited cutout keeps the transparency the
   backdrop generator's mask derivation depends on.
+- **Ads** — a six-question wizard that writes ad copy in Tamil, Tanglish or
+  English, then offers three things to do with it: share it through the
+  phone's own share sheet (free, instant), post it to the shop's Instagram
+  feed, or run it as a paid Meta campaign (created **paused**).
+- **Daily** — posts written for the shop overnight, waiting for one tap.
+  Also where the shop profile that they are written from is saved.
 
 **Background removal is on-device everywhere.** The paid
 `/ai/remove-background` endpoint is no longer called from this app: it cost
@@ -34,14 +40,18 @@ money per image and stopped working outright once the fal.ai balance ran out
 (`403 User is locked. Reason: Exhausted balance.`). The studio flow now feeds
 the on-device cutout straight into backdrop generation, so the only calls
 that still need fal.ai credit are backdrop, upscale and try-on.
-- **Batch** and **Content** — honest "Coming soon" placeholders
-  (`screens/batch_screen.dart`, `screens/content_screen.dart`). Batch
-  (multi-image processing) and Content (sign-in + saved designs, needs
-  Firebase Auth/Storage) are real, separate pieces of work, not built yet.
+
+**The app holds no API keys.** Ads, Instagram and the daily queue all call
+the Ad Auto-Pilot API (`../marketing-autopilot/web`), which is where the
+Gemini and Meta credentials live. An APK can be decompiled, and a leaked
+Meta token spends the shop's real ad budget -- so the phone sends only the
+owner passcode, and the protections that matter (budget ceiling, campaigns
+created paused, the passcode gate) are enforced server-side where they
+cannot be edited out of a build.
 
 **Not yet built** (from the fuller product spec): Firebase auth, the
-credit/subscription system, and payments (Razorpay/Play Billing), plus
-Batch and Content above. See the root `README.md`'s project status for
+credit/subscription system, payments (Razorpay/Play Billing), and batch
+processing of several photos at once. See the root `README.md`'s project status for
 what's actually live.
 
 ## Structure
@@ -54,13 +64,19 @@ mobile/
 │   │   ├── home_shell.dart             # Bottom-nav shell (4 tabs)
 │   │   ├── studio_screen.dart          # Home tab: the studio flow
 │   │   ├── ai_tools_screen.dart        # AI tools tab: menu into Home
-│   │   ├── batch_screen.dart           # Batch tab: "Coming soon"
-│   │   └── content_screen.dart         # Content tab: "Coming soon"
-│   ├── services/api_service.dart       # HTTP calls to backend /ai/* endpoints
+│   │   └── ads/
+│   │       ├── ad_wizard_screen.dart   # Ads tab: six questions
+│   │       ├── ad_result_screen.dart   # Share / Instagram / paid ad
+│   │       └── daily_posts_screen.dart # Daily tab: the queue
+│   ├── theme.dart                      # Palette + shared buttons
+│   ├── services/
+│   │   ├── api_service.dart            # Backend /ai/* endpoints
+│   │   └── adpilot_api.dart            # Ad Auto-Pilot API (no keys held here)
 │   ├── models/studio_theme.dart        # Studio theme preset model
 │   └── widgets/
 │       ├── theme_selector.dart         # Theme picker chips
-│       └── coming_soon.dart            # Shared "not built yet" placeholder
+│       ├── step_shell.dart             # Wizard frame, progress, choices
+│       └── passcode_field.dart         # Owner passcode input
 ├── pubspec.yaml
 └── analysis_options.yaml
 ```
