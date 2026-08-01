@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import ShareButton from '../share-button';
+import PosterMaker from './poster-maker';
 import {
   Choice,
   Continue,
@@ -39,9 +40,11 @@ const TOTAL_STEPS = 6;
 
 interface AdCopy {
   language: string;
+  hook: string;
   headline: string;
   primaryText: string;
   cta: string;
+  hashtags: string[];
 }
 
 interface Targeting {
@@ -106,6 +109,11 @@ export default function CreatePage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [published, setPublished] = useState<PublishResponse | null>(null);
 
+  /// The rendered poster, which stands in for the raw photo everywhere it is
+  /// published: a product snapshot with the offer written on it does the job
+  /// the snapshot alone cannot, and it is the same one tap either way.
+  const [poster, setPoster] = useState<File | null>(null);
+
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [posted, setPosted] = useState<InstagramResponse | null>(null);
@@ -157,7 +165,8 @@ export default function CreatePage() {
    * so nothing here can raise its own spending limit by editing the payload.
    */
   async function publish() {
-    if (!result || !image) return;
+    const art = poster ?? image;
+    if (!result || !art) return;
     setPublishing(true);
     setPublishError(null);
     try {
@@ -172,7 +181,7 @@ export default function CreatePage() {
           copies: result.plan.copies,
         }),
       );
-      form.set('image', image);
+      form.set('image', art);
 
       const res = await fetch('/api/v1/campaign/publish', {
         method: 'POST',
@@ -211,7 +220,8 @@ export default function CreatePage() {
    * endpoint that can do that is its own kind of expensive.
    */
   async function postToInstagram(copy: AdCopy) {
-    if (!image) return;
+    const art = poster ?? image;
+    if (!art) return;
     setPosting(true);
     setPostError(null);
     try {
@@ -219,12 +229,13 @@ export default function CreatePage() {
       form.set(
         'copy',
         JSON.stringify({
-          headline: copy.headline,
+          headline: copy.hook || copy.headline,
           primaryText: copy.primaryText,
           cta: copy.cta,
+          hashtags: copy.hashtags ?? [],
         }),
       );
-      form.set('image', image);
+      form.set('image', art);
 
       const res = await fetch('/api/v1/instagram/post', {
         method: 'POST',
@@ -251,6 +262,7 @@ export default function CreatePage() {
     setPublishError(null);
     setPosted(null);
     setPostError(null);
+    setPoster(null);
     setError(null);
     setStep(1);
   }
@@ -261,6 +273,11 @@ export default function CreatePage() {
     const preferred =
       result.plan.copies.find((c) => c.language === language) ??
       result.plan.copies[0];
+
+    // What actually gets published. The poster renders even with no product
+    // photo -- headline and call to action on a gradient -- so publishing no
+    // longer depends on the owner having had a picture to hand.
+    const artwork = poster ?? image;
 
     return (
       <main className="mx-auto max-w-md px-5 pt-6 pb-16">
@@ -277,13 +294,36 @@ export default function CreatePage() {
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
               {c.language}
             </p>
-            <h2 className="text-xl font-bold leading-snug">{c.headline}</h2>
+            {/* The hook leads because that is the order it is read in while
+                scrolling: the first line has to earn the second. */}
+            {c.hook && (
+              <p className="text-xl font-bold leading-snug">{c.hook}</p>
+            )}
+            <h2
+              className={`text-base font-bold leading-snug ${
+                c.hook ? 'mt-3 text-ink/80' : 'text-xl'
+              }`}
+            >
+              {c.headline}
+            </h2>
             <p className="mt-2 text-ink/75">{c.primaryText}</p>
+            {c.hashtags?.length > 0 && (
+              <p className="mt-3 text-sm text-brand">
+                {c.hashtags.map((t) => `#${t}`).join(' ')}
+              </p>
+            )}
             <span className="mt-4 inline-block rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white">
               {c.cta}
             </span>
           </article>
         ))}
+
+        <PosterMaker
+          headline={preferred.hook || preferred.headline}
+          cta={preferred.cta}
+          image={image}
+          onPoster={setPoster}
+        />
 
         {/* First, because it works right now: no ad account, no token, no
             approval, no money. */}
@@ -293,10 +333,12 @@ export default function CreatePage() {
             WhatsApp, Instagram, your customer group — free, right now.
           </p>
           <ShareButton
+            hook={preferred.hook}
+            hashtags={preferred.hashtags}
             headline={preferred.headline}
             primaryText={preferred.primaryText}
             cta={preferred.cta}
-            image={image}
+            image={artwork}
           />
         </section>
 
@@ -326,9 +368,9 @@ export default function CreatePage() {
             </div>
           ) : (
             <>
-              {!image && (
+              {!artwork && (
                 <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
-                  Instagram needs a photo. Start again and add one.
+                  Waiting for the poster to finish drawing.
                 </p>
               )}
               {postError && (
@@ -346,7 +388,7 @@ export default function CreatePage() {
               <button
                 type="button"
                 onClick={() => postToInstagram(preferred)}
-                disabled={posting || !image || passcode.length === 0}
+                disabled={posting || !artwork || passcode.length === 0}
                 className="mt-4 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
               >
                 {posting ? 'Posting…' : 'Post to Instagram'}
@@ -403,10 +445,9 @@ export default function CreatePage() {
               until you switch it on yourself.
             </p>
 
-            {!image && (
+            {!artwork && (
               <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
-                Facebook needs a product photo for a paid ad. Start again and
-                add one.
+                Waiting for the poster to finish drawing.
               </p>
             )}
 
@@ -437,7 +478,7 @@ export default function CreatePage() {
             <button
               type="button"
               onClick={publish}
-              disabled={publishing || !image || passcode.length === 0}
+              disabled={publishing || !artwork || passcode.length === 0}
               className="mt-5 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
             >
               {publishing ? 'Sending to Facebook…' : 'Send to Facebook'}

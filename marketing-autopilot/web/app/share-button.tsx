@@ -24,15 +24,24 @@ import { useEffect, useState } from 'react';
  */
 
 interface Props {
+  hook?: string;
   headline: string;
   primaryText: string;
   cta: string;
+  hashtags?: string[];
   image: File | null;
 }
 
 type Capability = 'unknown' | 'files' | 'text' | 'none';
 
-export default function ShareButton({ headline, primaryText, cta, image }: Props) {
+export default function ShareButton({
+  hook,
+  headline,
+  primaryText,
+  cta,
+  hashtags,
+  image,
+}: Props) {
   const [capability, setCapability] = useState<Capability>('unknown');
   const [copied, setCopied] = useState(false);
 
@@ -48,9 +57,18 @@ export default function ShareButton({ headline, primaryText, cta, image }: Props
     setCapability(canFiles ? 'files' : 'text');
   }, [image]);
 
-  // Blank line between the pitch and the call to action: this text is pasted
-  // straight into WhatsApp, where one dense paragraph does not get read.
-  const text = `${headline}\n\n${primaryText}\n\n${cta}`;
+  // Blank lines between the parts: this is pasted straight into WhatsApp,
+  // where one dense paragraph does not get read. Hook first, because that is
+  // the line that decides whether the rest is read at all.
+  const text = [
+    hook,
+    headline,
+    primaryText,
+    cta,
+    hashtags?.length ? hashtags.map((t) => `#${t}`).join(' ') : undefined,
+  ]
+    .filter((part) => part && part.trim().length > 0)
+    .join('\n\n');
 
   async function share() {
     try {
