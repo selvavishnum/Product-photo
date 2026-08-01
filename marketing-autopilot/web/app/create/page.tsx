@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import ShareButton from '../share-button';
+import PosterMaker from './poster-maker';
 import {
   Choice,
   Continue,
@@ -106,6 +107,11 @@ export default function CreatePage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [published, setPublished] = useState<PublishResponse | null>(null);
 
+  /// The rendered poster, which stands in for the raw photo everywhere it is
+  /// published: a product snapshot with the offer written on it does the job
+  /// the snapshot alone cannot, and it is the same one tap either way.
+  const [poster, setPoster] = useState<File | null>(null);
+
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [posted, setPosted] = useState<InstagramResponse | null>(null);
@@ -157,7 +163,8 @@ export default function CreatePage() {
    * so nothing here can raise its own spending limit by editing the payload.
    */
   async function publish() {
-    if (!result || !image) return;
+    const art = poster ?? image;
+    if (!result || !art) return;
     setPublishing(true);
     setPublishError(null);
     try {
@@ -172,7 +179,7 @@ export default function CreatePage() {
           copies: result.plan.copies,
         }),
       );
-      form.set('image', image);
+      form.set('image', art);
 
       const res = await fetch('/api/v1/campaign/publish', {
         method: 'POST',
@@ -211,7 +218,8 @@ export default function CreatePage() {
    * endpoint that can do that is its own kind of expensive.
    */
   async function postToInstagram(copy: AdCopy) {
-    if (!image) return;
+    const art = poster ?? image;
+    if (!art) return;
     setPosting(true);
     setPostError(null);
     try {
@@ -224,7 +232,7 @@ export default function CreatePage() {
           cta: copy.cta,
         }),
       );
-      form.set('image', image);
+      form.set('image', art);
 
       const res = await fetch('/api/v1/instagram/post', {
         method: 'POST',
@@ -251,6 +259,7 @@ export default function CreatePage() {
     setPublishError(null);
     setPosted(null);
     setPostError(null);
+    setPoster(null);
     setError(null);
     setStep(1);
   }
@@ -261,6 +270,11 @@ export default function CreatePage() {
     const preferred =
       result.plan.copies.find((c) => c.language === language) ??
       result.plan.copies[0];
+
+    // What actually gets published. The poster renders even with no product
+    // photo -- headline and call to action on a gradient -- so publishing no
+    // longer depends on the owner having had a picture to hand.
+    const artwork = poster ?? image;
 
     return (
       <main className="mx-auto max-w-md px-5 pt-6 pb-16">
@@ -285,6 +299,13 @@ export default function CreatePage() {
           </article>
         ))}
 
+        <PosterMaker
+          headline={preferred.headline}
+          cta={preferred.cta}
+          image={image}
+          onPoster={setPoster}
+        />
+
         {/* First, because it works right now: no ad account, no token, no
             approval, no money. */}
         <section className="mt-8">
@@ -296,7 +317,7 @@ export default function CreatePage() {
             headline={preferred.headline}
             primaryText={preferred.primaryText}
             cta={preferred.cta}
-            image={image}
+            image={artwork}
           />
         </section>
 
@@ -326,9 +347,9 @@ export default function CreatePage() {
             </div>
           ) : (
             <>
-              {!image && (
+              {!artwork && (
                 <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
-                  Instagram needs a photo. Start again and add one.
+                  Waiting for the poster to finish drawing.
                 </p>
               )}
               {postError && (
@@ -346,7 +367,7 @@ export default function CreatePage() {
               <button
                 type="button"
                 onClick={() => postToInstagram(preferred)}
-                disabled={posting || !image || passcode.length === 0}
+                disabled={posting || !artwork || passcode.length === 0}
                 className="mt-4 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
               >
                 {posting ? 'Posting…' : 'Post to Instagram'}
@@ -403,10 +424,9 @@ export default function CreatePage() {
               until you switch it on yourself.
             </p>
 
-            {!image && (
+            {!artwork && (
               <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
-                Facebook needs a product photo for a paid ad. Start again and
-                add one.
+                Waiting for the poster to finish drawing.
               </p>
             )}
 
@@ -437,7 +457,7 @@ export default function CreatePage() {
             <button
               type="button"
               onClick={publish}
-              disabled={publishing || !image || passcode.length === 0}
+              disabled={publishing || !artwork || passcode.length === 0}
               className="mt-5 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
             >
               {publishing ? 'Sending to Facebook…' : 'Send to Facebook'}
