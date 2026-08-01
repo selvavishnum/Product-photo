@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { AdPlanError, generateAdPlan } from '../../../../../lib/adPlan';
+import { resolveUploadedImage } from '../../../../../lib/imageBytes';
 
 /**
  * POST /api/v1/ad/generate
@@ -87,22 +88,18 @@ export async function POST(request: Request) {
   let productImage: { base64: string; mimeType: string } | undefined;
 
   if (hasImage) {
-    if (!image.type.startsWith('image/')) {
+    try {
+      const resolved = await resolveUploadedImage(image, MAX_IMAGE_BYTES);
+      productImage = {
+        base64: resolved.bytes.toString('base64'),
+        mimeType: resolved.mimeType,
+      };
+    } catch (err) {
       return NextResponse.json(
-        { error: { message: 'Uploaded file must be an image' } },
+        { error: { message: err instanceof Error ? err.message : 'Bad image' } },
         { status: 400 },
       );
     }
-    if (image.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: { message: 'Image must be under 10 MB' } },
-        { status: 413 },
-      );
-    }
-    productImage = {
-      base64: Buffer.from(await image.arrayBuffer()).toString('base64'),
-      mimeType: image.type,
-    };
   }
 
   try {

@@ -90,7 +90,38 @@ class BackdropStyle {
     vignette: 0.10,
   );
 
-  static const all = [none, studioGrey, warmCream, deepNavy, blush];
+  /// Saffron. The festival colour here, and it sits behind gold without
+  /// fighting it -- both are warm, so the metal reads as metal rather than as
+  /// another patch of orange.
+  static const saffron = BackdropStyle(
+    name: 'Saffron',
+    top: 0xFFB347,
+    bottom: 0xC2560A,
+    spotlight: 0.34,
+    reflection: 0.22,
+    vignette: 0.18,
+  );
+
+  /// Deep maroon, the traditional jewellery-box lining. Gold and kundan read
+  /// strongest against it, which is why every real jewellery counter uses it.
+  static const maroon = BackdropStyle(
+    name: 'Maroon',
+    top: 0x7A1F2B,
+    bottom: 0x35090F,
+    spotlight: 0.52,
+    reflection: 0.26,
+    vignette: 0.30,
+  );
+
+  static const all = [
+    none,
+    studioGrey,
+    warmCream,
+    saffron,
+    maroon,
+    deepNavy,
+    blush,
+  ];
 
   /// Renders the background by itself, before the product is placed on it.
   ///

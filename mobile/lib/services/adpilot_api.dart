@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 /// Client for the Ad Auto-Pilot API (see /marketing-autopilot/web).
 ///
@@ -26,6 +27,28 @@ class AdPilotApi {
   /// Sent on every call that can spend money or publish publicly.
   String? passcode;
 
+  /// Attaches a file with its real content type.
+  ///
+  /// `MultipartFile.fromPath` defaults to `application/octet-stream` when no
+  /// contentType is given, and the server checks that an upload declares
+  /// itself as an image -- so without this every photo is rejected with
+  /// "Uploaded file must be an image", which is both true of the header and
+  /// wrong about the file.
+  static Future<http.MultipartFile> _imageField(File image) async {
+    final ext = image.path.toLowerCase().split('.').last;
+    final subtype = switch (ext) {
+      'png' => 'png',
+      'webp' => 'webp',
+      'heic' || 'heif' => 'heic',
+      _ => 'jpeg',
+    };
+    return http.MultipartFile.fromPath(
+      'image',
+      image.path,
+      contentType: MediaType('image', subtype),
+    );
+  }
+
   Map<String, String> get _authHeaders =>
       passcode == null ? const {} : {'x-owner-passcode': passcode!};
 
@@ -49,7 +72,7 @@ class AdPilotApi {
           ..fields['dailyBudgetInr'] = '$dailyBudgetInr';
     if (city != null && city.isNotEmpty) request.fields['city'] = city;
     if (image != null) {
-      request.files.add(await http.MultipartFile.fromPath('image', image.path));
+      request.files.add(await _imageField(image));
     }
 
     final body = await _send(request);
@@ -76,7 +99,7 @@ class AdPilotApi {
         'targeting': plan.targeting.toJson(),
         'copies': plan.copies.map((c) => c.toJson()).toList(),
       });
-    request.files.add(await http.MultipartFile.fromPath('image', image.path));
+    request.files.add(await _imageField(image));
 
     return PublishResult.fromJson(await _send(request));
   }
@@ -93,7 +116,7 @@ class AdPilotApi {
     )
       ..headers.addAll(_authHeaders)
       ..fields['copy'] = jsonEncode(copy.toJson());
-    request.files.add(await http.MultipartFile.fromPath('image', image.path));
+    request.files.add(await _imageField(image));
 
     return InstagramPost.fromJson(await _send(request));
   }
@@ -128,7 +151,7 @@ class AdPilotApi {
             'language': language,
           });
     if (image != null) {
-      request.files.add(await http.MultipartFile.fromPath('image', image.path));
+      request.files.add(await _imageField(image));
     }
     await _send(request);
   }

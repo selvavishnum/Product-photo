@@ -12,6 +12,7 @@ import {
   publishInstagramPhoto,
   resolveInstagramUserId,
 } from '../../../../../lib/instagram';
+import { resolveUploadedImage } from '../../../../../lib/imageBytes';
 import {
   MetaConfigError,
   getMetaCredentials,
@@ -85,15 +86,24 @@ export async function POST(request: Request) {
   if (!(image instanceof File) || image.size === 0) {
     return fail('Instagram needs a photo. Go back and add one.', 400);
   }
-  if (image.size > MAX_IMAGE_BYTES) {
-    return fail('Photo must be under 8 MB', 413);
+  // Sniffed, not trusted: mobile clients send application/octet-stream unless
+  // the content type is set explicitly, and rejecting a real JPEG on that
+  // basis is a bug the user cannot do anything about.
+  let bytes: Buffer;
+  let mimeType: string;
+  try {
+    const resolved = await resolveUploadedImage(image, MAX_IMAGE_BYTES);
+    bytes = resolved.bytes;
+    mimeType = resolved.mimeType;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : 'Bad image', 400);
   }
 
-  // Checked here rather than left to hostImage so an unsupported format is a
-  // 400 the user can act on, not a 503 that reads as "the server is broken".
-  // Both used to surface as ImageHostError and got the same status.
+  // Instagram is narrower than "any image" -- it refuses GIF and WebP with an
+  // error that does not say which part failed, so it is caught here where the
+  // user is still looking at the photo they picked.
   try {
-    assertInstagramFormat(image.type);
+    assertInstagramFormat(mimeType);
   } catch (err) {
     return fail(
       err instanceof ImageHostError ? err.message : 'Unsupported image format',
@@ -101,13 +111,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const bytes = Buffer.from(await image.arrayBuffer());
-
   try {
     // Instagram fetches `image_url` itself, so the photo has to be reachable
     // on the public internet before the post can be created. This is the one
     // place the app needs an object store.
-    const imageUrl = await hostImage(bytes, image.type);
+    const imageUrl = await hostImage(bytes, mimeType);
 
     const igUserId = await resolveInstagramUserId(
       credentials.accessToken,

@@ -12,6 +12,7 @@ import {
   markSkipped,
   saveProfile,
 } from '../../../../lib/db';
+import { resolveUploadedImage } from '../../../../lib/imageBytes';
 import { hostImage } from '../../../../lib/imageHost';
 import {
   buildCaption,
@@ -118,12 +119,9 @@ export async function POST(request: Request) {
     let imageUrl: string | null = null;
     const image = form.get('image');
     if (image instanceof File && image.size > 0) {
-      if (image.size > MAX_IMAGE_BYTES) return fail('Photo must be under 8 MB', 413);
       try {
-        imageUrl = await hostImage(
-          Buffer.from(await image.arrayBuffer()),
-          image.type,
-        );
+        const resolved = await resolveUploadedImage(image, MAX_IMAGE_BYTES);
+        imageUrl = await hostImage(resolved.bytes, resolved.mimeType);
       } catch (err) {
         return fail(err instanceof Error ? err.message : 'Upload failed', 400);
       }
@@ -169,12 +167,9 @@ export async function POST(request: Request) {
   let imageUrl = post.image_url;
   const poster = form.get('image');
   if (poster instanceof File && poster.size > 0) {
-    if (poster.size > MAX_IMAGE_BYTES) return fail('Poster must be under 8 MB', 413);
     try {
-      imageUrl = await hostImage(
-        Buffer.from(await poster.arrayBuffer()),
-        poster.type,
-      );
+      const resolved = await resolveUploadedImage(poster, MAX_IMAGE_BYTES);
+      imageUrl = await hostImage(resolved.bytes, resolved.mimeType);
     } catch (err) {
       return fail(err instanceof Error ? err.message : 'Upload failed', 400);
     }

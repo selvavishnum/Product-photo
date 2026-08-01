@@ -18,6 +18,7 @@ import {
   pickCopy,
   toPaise,
 } from '../../../../../lib/planToPublish';
+import { resolveUploadedImage } from '../../../../../lib/imageBytes';
 import { checkOwner } from '../../../../../lib/ownerGate';
 
 /**
@@ -132,13 +133,12 @@ export async function POST(request: Request) {
   if (!(image instanceof File) || image.size === 0) {
     return fail('An ad needs a product photo. Go back and add one.', 400);
   }
-  if (!image.type.startsWith('image/')) {
-    return fail('Uploaded file must be an image', 400);
+  let imageBytes: Buffer;
+  try {
+    imageBytes = (await resolveUploadedImage(image, MAX_IMAGE_BYTES)).bytes;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : 'Bad image', 400);
   }
-  if (image.size > MAX_IMAGE_BYTES) {
-    return fail('Image must be under 10 MB', 413);
-  }
-  const imageBytes = Buffer.from(await image.arrayBuffer());
 
   const copy = pickCopy(body.copies, body.language);
   const cta = normaliseCta(copy.cta, Boolean(credentials.phoneNumber));
