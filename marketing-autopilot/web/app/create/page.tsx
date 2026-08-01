@@ -68,6 +68,12 @@ interface PublishResponse {
   note: string;
 }
 
+interface InstagramResponse {
+  postId: string;
+  permalink?: string;
+  note: string;
+}
+
 const LANGUAGES = [
   { value: 'TAMIL', label: 'தமிழ்', hint: 'Tamil script' },
   { value: 'TANGLISH', label: 'Tanglish', hint: 'Tamil in English letters' },
@@ -99,6 +105,10 @@ export default function CreatePage() {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [published, setPublished] = useState<PublishResponse | null>(null);
+
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [posted, setPosted] = useState<InstagramResponse | null>(null);
 
   const back = () => setStep((s) => Math.max(1, s - 1));
   const next = () => setStep((s) => s + 1);
@@ -193,10 +203,54 @@ export default function CreatePage() {
     }
   }
 
+  /**
+   * Posts to the shop's own Instagram feed.
+   *
+   * Free, unlike the paid path below it, but still behind the passcode: it
+   * puts text and a photo publicly under the owner's name, and an open
+   * endpoint that can do that is its own kind of expensive.
+   */
+  async function postToInstagram(copy: AdCopy) {
+    if (!image) return;
+    setPosting(true);
+    setPostError(null);
+    try {
+      const form = new FormData();
+      form.set(
+        'copy',
+        JSON.stringify({
+          headline: copy.headline,
+          primaryText: copy.primaryText,
+          cta: copy.cta,
+        }),
+      );
+      form.set('image', image);
+
+      const res = await fetch('/api/v1/instagram/post', {
+        method: 'POST',
+        headers: { 'x-owner-passcode': passcode },
+        body: form,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPostError(data?.error?.message ?? 'Could not post to Instagram.');
+        return;
+      }
+      setPosted(data as InstagramResponse);
+    } catch {
+      setPostError('Could not reach the server. Check your connection.');
+    } finally {
+      setPosting(false);
+    }
+  }
+
   function restart() {
     setResult(null);
     setPublished(null);
     setPublishError(null);
+    setPosted(null);
+    setPostError(null);
     setError(null);
     setStep(1);
   }
@@ -244,6 +298,61 @@ export default function CreatePage() {
             cta={preferred.cta}
             image={image}
           />
+        </section>
+
+        {/* Free like sharing, but it publishes rather than hands over, so it
+            sits between the two -- and behind the same passcode as the paid
+            path, because it posts publicly under the owner's name. */}
+        <section className="mt-10">
+          <h2 className="text-lg font-bold">Post it to Instagram</h2>
+          <p className="mt-1 text-sm text-muted">
+            Goes straight to your shop&rsquo;s feed. Free — this is not a paid
+            ad.
+          </p>
+
+          {posted ? (
+            <div className="mt-4 rounded-3xl border border-success/30 bg-success-soft p-5">
+              <p className="font-semibold text-success">{posted.note}</p>
+              {posted.permalink && (
+                <a
+                  href={posted.permalink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-block rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+                >
+                  See the post
+                </a>
+              )}
+            </div>
+          ) : (
+            <>
+              {!image && (
+                <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+                  Instagram needs a photo. Start again and add one.
+                </p>
+              )}
+              {postError && (
+                <p className="mt-3 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+                  {postError}
+                </p>
+              )}
+              <input
+                className={`${inputClass} mt-4`}
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Owner passcode"
+              />
+              <button
+                type="button"
+                onClick={() => postToInstagram(preferred)}
+                disabled={posting || !image || passcode.length === 0}
+                className="mt-4 w-full rounded-full border border-line-strong px-6 py-4 font-semibold transition hover:bg-surface disabled:opacity-25"
+              >
+                {posting ? 'Posting…' : 'Post to Instagram'}
+              </button>
+            </>
+          )}
         </section>
 
         <section className="mt-10 rounded-3xl bg-surface p-5">
@@ -301,16 +410,23 @@ export default function CreatePage() {
               </p>
             )}
 
-            <input
-              className={`${inputClass} mt-4`}
-              type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Owner passcode"
-            />
-            <p className="mt-1.5 text-xs text-faint">
-              Only you should be able to spend your ad budget.
-            </p>
+            {/* Shown only when the Instagram section above has not already
+                asked for it -- one passcode, two uses, but two boxes on the
+                same screen reads like two different secrets. */}
+            {!posted && (
+              <p className="mt-4 text-xs text-faint">
+                Uses the same owner passcode as above.
+              </p>
+            )}
+            {posted && (
+              <input
+                className={`${inputClass} mt-4`}
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Owner passcode"
+              />
+            )}
 
             {publishError && (
               <p className="mt-4 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
