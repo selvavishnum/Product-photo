@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 
+import 'ads/ad_wizard_screen.dart';
+import 'ads/daily_posts_screen.dart';
 import 'ai_tools_screen.dart';
-import 'batch_screen.dart';
-import 'content_screen.dart';
 import 'white_background_screen.dart';
 
-/// Bottom-nav shell matching Photoroom's tab layout (Home / AI tools /
-/// Batch / Content). Only Home (the studio flow) and AI tools (a menu into
-/// that same flow) are real -- Batch and Content are honest placeholders,
-/// see batch_screen.dart / content_screen.dart.
+/// Bottom-nav shell.
+///
+/// Four tabs, in the order a shop owner actually reaches for them:
+///
+///  - **Photo** — the on-device studio flow. Free, works offline, and keeps
+///    working when the paid backend does not, so it leads.
+///  - **Tools** — the rest of the photo features.
+///  - **Ads** — write an ad, then share it, post it, or promote it.
+///  - **Daily** — posts written overnight, waiting for a tap.
+///
+/// Ads and Daily took the slots Batch and Content held. Both of those were
+/// honest "coming soon" placeholders that had never been built, so swapping
+/// them for working features loses nothing.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -19,45 +28,43 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
-
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      // Home leads with the on-device flow: it is free, works offline, and
-      // keeps working when the paid backend does not.
       const WhiteBackgroundScreen(),
       const AiToolsScreen(),
-      const BatchScreen(),
-      const ContentScreen(),
+      const AdWizardScreen(),
+      const DailyPostsScreen(),
     ];
 
     return Scaffold(
-      // IndexedStack keeps every tab's state alive (e.g. an in-progress
-      // studio flow survives switching to AI tools and back).
+      // IndexedStack keeps every tab's state alive -- a half-finished ad
+      // survives a glance at the photo tools and back, which an owner
+      // interrupted by a customer will do constantly.
       body: IndexedStack(index: _selectedIndex, children: tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) => setState(() => _selectedIndex = index),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            icon: Icon(Icons.auto_fix_high_outlined),
+            selectedIcon: Icon(Icons.auto_fix_high),
+            label: 'Photo',
           ),
           NavigationDestination(
             icon: Icon(Icons.auto_awesome_outlined),
             selectedIcon: Icon(Icons.auto_awesome),
-            label: 'AI tools',
+            label: 'Tools',
           ),
           NavigationDestination(
-            icon: Icon(Icons.layers_outlined),
-            selectedIcon: Icon(Icons.layers),
-            label: 'Batch',
+            icon: Icon(Icons.campaign_outlined),
+            selectedIcon: Icon(Icons.campaign),
+            label: 'Ads',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Content',
+            icon: Icon(Icons.calendar_today_outlined),
+            selectedIcon: Icon(Icons.calendar_today),
+            label: 'Daily',
           ),
         ],
       ),

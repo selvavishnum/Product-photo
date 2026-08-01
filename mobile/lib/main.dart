@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/home_shell.dart';
+import 'theme.dart';
 
 void main() {
   runApp(const ProductPhotoStudioApp());
@@ -13,11 +14,9 @@ class ProductPhotoStudioApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Product Photo Studio',
-      theme: ThemeData(
-        colorSchemeSeed: Colors.deepPurple,
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
+      // Light and near-monochrome, matching the web app so the two do not
+      // read as different products. See lib/theme.dart for the reasoning.
+      theme: buildAppTheme(),
       home: const HomeShell(),
     );
   }
