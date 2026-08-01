@@ -161,9 +161,28 @@ export async function POST(request: Request) {
   const post = await getPost(id);
   if (!post) return fail('No such post', 404);
   if (post.status === 'POSTED') return fail('Already posted', 409);
-  if (!post.image_url) {
+
+  // The poster is drawn in the browser, because that is the only place with a
+  // text engine that shapes Tamil correctly. The cron has no browser, so it
+  // stores the words and the artwork arrives here, at approval, when someone
+  // is actually looking at it.
+  let imageUrl = post.image_url;
+  const poster = form.get('image');
+  if (poster instanceof File && poster.size > 0) {
+    if (poster.size > MAX_IMAGE_BYTES) return fail('Poster must be under 8 MB', 413);
+    try {
+      imageUrl = await hostImage(
+        Buffer.from(await poster.arrayBuffer()),
+        poster.type,
+      );
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : 'Upload failed', 400);
+    }
+  }
+
+  if (!imageUrl) {
     return fail(
-      'This post has no photo. Add one to the shop profile and it will be used from the next post on.',
+      'This post has no picture yet. Wait for the poster to finish drawing, or add a photo to the shop profile.',
       400,
     );
   }
@@ -184,8 +203,13 @@ export async function POST(request: Request) {
     const result = await publishInstagramPhoto({
       accessToken: credentials.accessToken,
       igUserId,
-      imageUrl: post.image_url,
-      caption: buildCaption(post.headline, post.primary_text, post.cta),
+      imageUrl,
+      caption: buildCaption(
+        post.hook || post.headline,
+        post.primary_text,
+        post.cta,
+        post.hashtags ?? [],
+      ),
     });
     await markPosted(id, result.postId, result.permalink ?? null);
     return NextResponse.json({

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import { inputClass } from '../create/step-shell';
+import PostCard, { type QueuedPost } from './post-card';
 
 /**
  * The daily-post queue.
@@ -16,18 +17,6 @@ import { inputClass } from '../create/step-shell';
  * Also where the shop profile is set, because the generator needs something
  * to write about when nobody is present to ask.
  */
-
-interface Post {
-  id: string;
-  headline: string;
-  primary_text: string;
-  cta: string;
-  image_url: string | null;
-  status: string;
-  error: string | null;
-  permalink: string | null;
-  created_at: string;
-}
 
 interface Profile {
   business_name: string;
@@ -47,7 +36,7 @@ export default function QueuePage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<QueuedPost[]>([]);
   const [autoPost, setAutoPost] = useState(false);
 
   const [businessName, setBusinessName] = useState('');
@@ -133,13 +122,20 @@ export default function QueuePage() {
     }
   }
 
-  async function act(id: string, action: 'approve' | 'skip') {
+  async function act(
+    id: string,
+    action: 'approve' | 'skip',
+    poster?: File | null,
+  ) {
     setBusy(id);
     setError(null);
     try {
       const form = new FormData();
       form.set('action', action);
       form.set('id', id);
+      // The poster was drawn in this browser; the server has no way to make
+      // one, so it travels with the approval.
+      if (poster) form.set('image', poster);
       const res = await fetch('/api/v1/queue', {
         method: 'POST',
         headers: { 'x-owner-passcode': passcode },
@@ -209,49 +205,26 @@ export default function QueuePage() {
       {/* ---- pending ---- */}
       {pending.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-bold">Waiting for you</h2>
+          <h2 className="text-lg font-bold">This week</h2>
+          <p className="mt-1 text-sm text-muted">
+            One post a day, already written. Read it, tap once.
+          </p>
           {pending.map((p) => (
-            <article key={p.id} className="mt-4 rounded-3xl border border-line p-5">
-              {p.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.image_url}
-                  alt=""
-                  className="mb-4 w-full rounded-2xl object-cover"
-                />
-              )}
-              <h3 className="text-lg font-bold leading-snug">{p.headline}</h3>
-              <p className="mt-2 whitespace-pre-line text-ink/75">
-                {p.primary_text}
-              </p>
-              <p className="mt-3 font-semibold">{p.cta}</p>
-
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => act(p.id, 'approve')}
-                  disabled={busy === p.id}
-                  className="rounded-full bg-ink px-5 py-3 font-semibold text-white disabled:opacity-25"
-                >
-                  {busy === p.id ? 'Posting…' : 'Post it'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => act(p.id, 'skip')}
-                  disabled={busy === p.id}
-                  className="rounded-full border border-line px-5 py-3 text-muted disabled:opacity-25"
-                >
-                  Skip
-                </button>
-              </div>
-            </article>
+            <PostCard
+              key={p.id}
+              post={p}
+              passcode={passcode}
+              busy={busy === p.id}
+              onApprove={(poster) => act(p.id, 'approve', poster)}
+              onSkip={() => act(p.id, 'skip')}
+            />
           ))}
         </section>
       )}
 
       {pending.length === 0 && (
         <p className="mt-8 rounded-3xl bg-surface px-5 py-6 text-center text-sm text-muted">
-          Nothing waiting. The next post is written overnight.
+          Nothing waiting. The next week is written overnight.
         </p>
       )}
 

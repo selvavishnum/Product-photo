@@ -80,6 +80,16 @@ export async function ensureSchema(): Promise<void> {
     )
   `;
 
+  // Added after the table shipped, so ALTER rather than a changed CREATE --
+  // an existing deployment already has rows. IF NOT EXISTS keeps it safe to
+  // run on every request alongside the rest of ensureSchema.
+  await q`ALTER TABLE daily_post ADD COLUMN IF NOT EXISTS hook TEXT`;
+  await q`ALTER TABLE daily_post ADD COLUMN IF NOT EXISTS hashtags TEXT[]`;
+  await q`ALTER TABLE daily_post ADD COLUMN IF NOT EXISTS theme TEXT`;
+  /// The day this post is meant to go out. Null on rows written before the
+  /// calendar existed, which is why every read coalesces it to created_at.
+  await q`ALTER TABLE daily_post ADD COLUMN IF NOT EXISTS scheduled_for DATE`;
+
   // The queue is read as "the newest pending one" on every load, and the
   // cron checks "did we already make one today" before generating.
   await q`
@@ -99,6 +109,10 @@ export interface ShopProfile {
 
 export interface DailyPost {
   id: string;
+  hook: string | null;
+  hashtags: string[] | null;
+  theme: string | null;
+  scheduled_for: string | null;
   headline: string;
   primary_text: string;
   cta: string;
@@ -148,34 +162,56 @@ export async function hasPostForToday(timeZone: string): Promise<boolean> {
 }
 
 export async function createPost(p: {
+  hook?: string | null;
   headline: string;
   primaryText: string;
   cta: string;
+  hashtags?: string[];
+  theme?: string | null;
+  /** ISO date, e.g. 2026-08-04. Null means "as soon as approved". */
+  scheduledFor?: string | null;
   imageUrl: string | null;
   status: string;
 }): Promise<string> {
   const rows = (await sql()`
-    INSERT INTO daily_post (headline, primary_text, cta, image_url, status)
-    VALUES (${p.headline}, ${p.primaryText}, ${p.cta}, ${p.imageUrl}, ${p.status})
+    INSERT INTO daily_post
+      (hook, headline, primary_text, cta, hashtags, theme, scheduled_for,
+       image_url, status)
+    VALUES
+      (${p.hook ?? null}, ${p.headline}, ${p.primaryText}, ${p.cta},
+       ${p.hashtags ?? []}, ${p.theme ?? null}, ${p.scheduledFor ?? null},
+       ${p.imageUrl}, ${p.status})
     RETURNING id
   `) as Array<{ id: string }>;
   return String(rows[0].id);
 }
 
+/** True when the calendar already covers this date. */
+export async function hasPostForDate(date: string): Promise<boolean> {
+  const rows = (await sql()`
+    SELECT 1 FROM daily_post WHERE scheduled_for = ${date}::date LIMIT 1
+  `) as unknown[];
+  return rows.length > 0;
+}
+
 export async function listRecentPosts(limit = 20): Promise<DailyPost[]> {
   return (await sql()`
-    SELECT id, headline, primary_text, cta, image_url, status, error,
-           permalink, created_at, posted_at
+    SELECT id, hook, headline, primary_text, cta, hashtags, theme,
+           scheduled_for, image_url, status, error, permalink, created_at,
+           posted_at
     FROM daily_post
-    ORDER BY created_at DESC
+    -- Scheduled order, not insertion order: a week generated in one call
+    -- shares a created_at, and the owner reads it as a calendar.
+    ORDER BY COALESCE(scheduled_for, created_at::date) DESC, id DESC
     LIMIT ${limit}
   `) as DailyPost[];
 }
 
 export async function getPost(id: string): Promise<DailyPost | null> {
   const rows = (await sql()`
-    SELECT id, headline, primary_text, cta, image_url, status, error,
-           permalink, created_at, posted_at
+    SELECT id, hook, headline, primary_text, cta, hashtags, theme,
+           scheduled_for, image_url, status, error, permalink, created_at,
+           posted_at
     FROM daily_post WHERE id = ${id}
   `) as DailyPost[];
   return rows[0] ?? null;

@@ -6,12 +6,12 @@ import {
   createPost,
   ensureSchema,
   getProfile,
-  hasPostForToday,
+  hasPostForDate,
   listRecentPosts,
   markFailed,
   markPosted,
 } from '../../../../lib/db';
-import { generateDailyPost } from '../../../../lib/dailyPost';
+import { generateCalendar, isoDate } from '../../../../lib/dailyPost';
 import {
   buildCaption,
   publishInstagramPhoto,
@@ -39,6 +39,16 @@ export const maxDuration = 60;
 
 /** Asia/Kolkata: "today" must mean the shop's day, not UTC's. */
 const TIME_ZONE = 'Asia/Kolkata';
+
+/**
+ * How far ahead the calendar runs.
+ *
+ * A week rather than a day: the model writes the whole run in one call and
+ * can vary it deliberately, where seven separate calls each converge on their
+ * own favourite phrasing. It also means the owner can look at the week and
+ * decide, instead of being handed one post every morning.
+ */
+const PLAN_DAYS = 7;
 
 /**
  * Vercel sets `Authorization: Bearer $CRON_SECRET` on cron invocations. The
@@ -85,11 +95,12 @@ export async function GET(request: Request) {
     );
   }
 
-  // Cron can fire more than once -- a retry, a manual trigger, a schedule
-  // change -- and two posts in a day is exactly the behaviour that makes an
-  // account look automated.
-  if (await hasPostForToday(TIME_ZONE)) {
-    return NextResponse.json({ skipped: 'Already generated a post today.' });
+  // The calendar is refilled only when it has actually run out. Cron can fire
+  // more than once -- a retry, a manual trigger, a schedule change -- and two
+  // posts on one date is exactly what makes an account look automated.
+  const today = isoDate(0, TIME_ZONE);
+  if (await hasPostForDate(today)) {
+    return NextResponse.json({ skipped: `Already planned for ${today}.` });
   }
 
   // Handed to the model so it does not rewrite the same post it wrote last
@@ -97,11 +108,11 @@ export async function GET(request: Request) {
   const recent = await listRecentPosts(14);
   const recentHeadlines = recent.map((p) => p.headline);
 
-  let generated;
+  let planned;
   try {
-    generated = await generateDailyPost(profile, recentHeadlines);
+    planned = await generateCalendar(profile, PLAN_DAYS, recentHeadlines);
   } catch (err) {
-    console.error('daily post generation failed', err);
+    console.error('calendar generation failed', err);
     return NextResponse.json(
       { error: { message: err instanceof Error ? err.message : String(err) } },
       { status: 502 },
@@ -110,20 +121,36 @@ export async function GET(request: Request) {
 
   const auto = process.env.AUTO_POST === 'true';
 
-  const postId = await createPost({
-    headline: generated.headline,
-    primaryText: generated.primaryText,
-    cta: generated.cta,
-    imageUrl: profile.image_url,
-    status: 'PENDING',
-  });
+  const ids: string[] = [];
+  for (const post of planned) {
+    ids.push(
+      await createPost({
+        hook: post.hook,
+        headline: post.headline,
+        primaryText: post.primaryText,
+        cta: post.cta,
+        hashtags: post.hashtags,
+        theme: post.theme,
+        scheduledFor: post.scheduledFor,
+        imageUrl: profile.image_url,
+        status: 'PENDING',
+      }),
+    );
+  }
+
+  // Only today's post is a candidate for going out now; the rest of the week
+  // is a plan, and publishing it all at once would be seven posts in a
+  // minute.
+  const todayIndex = planned.findIndex((p) => p.scheduledFor === today);
+  const generated = todayIndex >= 0 ? planned[todayIndex] : planned[0];
+  const postId = ids[todayIndex >= 0 ? todayIndex : 0];
 
   if (!auto) {
     return NextResponse.json({
-      id: postId,
-      status: 'PENDING',
-      headline: generated.headline,
-      note: 'Waiting for approval on /queue.',
+      planned: planned.length,
+      from: planned[0].scheduledFor,
+      to: planned[planned.length - 1].scheduledFor,
+      note: 'A week of posts is waiting for approval on /queue.',
     });
   }
 
@@ -149,9 +176,10 @@ export async function GET(request: Request) {
       igUserId,
       imageUrl: profile.image_url,
       caption: buildCaption(
-        generated.headline,
+        generated.hook || generated.headline,
         generated.primaryText,
         generated.cta,
+        generated.hashtags,
       ),
     });
     await markPosted(postId, result.postId, result.permalink ?? null);
