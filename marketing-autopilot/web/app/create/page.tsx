@@ -40,9 +40,11 @@ const TOTAL_STEPS = 6;
 
 interface AdCopy {
   language: string;
+  hook: string;
   headline: string;
   primaryText: string;
   cta: string;
+  hashtags: string[];
 }
 
 interface Targeting {
@@ -227,9 +229,10 @@ export default function CreatePage() {
       form.set(
         'copy',
         JSON.stringify({
-          headline: copy.headline,
+          headline: copy.hook || copy.headline,
           primaryText: copy.primaryText,
           cta: copy.cta,
+          hashtags: copy.hashtags ?? [],
         }),
       );
       form.set('image', art);
@@ -291,8 +294,24 @@ export default function CreatePage() {
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
               {c.language}
             </p>
-            <h2 className="text-xl font-bold leading-snug">{c.headline}</h2>
+            {/* The hook leads because that is the order it is read in while
+                scrolling: the first line has to earn the second. */}
+            {c.hook && (
+              <p className="text-xl font-bold leading-snug">{c.hook}</p>
+            )}
+            <h2
+              className={`text-base font-bold leading-snug ${
+                c.hook ? 'mt-3 text-ink/80' : 'text-xl'
+              }`}
+            >
+              {c.headline}
+            </h2>
             <p className="mt-2 text-ink/75">{c.primaryText}</p>
+            {c.hashtags?.length > 0 && (
+              <p className="mt-3 text-sm text-brand">
+                {c.hashtags.map((t) => `#${t}`).join(' ')}
+              </p>
+            )}
             <span className="mt-4 inline-block rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white">
               {c.cta}
             </span>
@@ -300,7 +319,7 @@ export default function CreatePage() {
         ))}
 
         <PosterMaker
-          headline={preferred.headline}
+          headline={preferred.hook || preferred.headline}
           cta={preferred.cta}
           image={image}
           onPoster={setPoster}
@@ -314,6 +333,8 @@ export default function CreatePage() {
             WhatsApp, Instagram, your customer group — free, right now.
           </p>
           <ShareButton
+            hook={preferred.hook}
+            hashtags={preferred.hashtags}
             headline={preferred.headline}
             primaryText={preferred.primaryText}
             cta={preferred.cta}

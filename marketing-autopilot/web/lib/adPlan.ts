@@ -1,4 +1,8 @@
-import { GoogleGenAI } from '@google/genai';
+import {
+  GoogleGenAI,
+  createPartFromBase64,
+  createUserContent,
+} from '@google/genai';
 import { z } from 'zod';
 
 /**
@@ -34,9 +38,17 @@ export const AdPlanSchema = z.object({
     .array(
       z.object({
         language: z.enum(['TAMIL', 'ENGLISH', 'TANGLISH']),
+        /**
+         * The first line, written to stop a thumb. Kept separate from the
+         * headline because they do different jobs: the hook earns the next
+         * two seconds, the headline says what is on offer.
+         */
+        hook: z.string().min(1).max(90),
         headline: z.string().min(1).max(60),
         primaryText: z.string().min(1).max(300),
         cta: z.string().min(1).max(30),
+        /** Without the '#'. Added when the caption is assembled. */
+        hashtags: z.array(z.string().min(1).max(40)).max(12).default([]),
       }),
     )
     .min(1)
@@ -82,17 +94,24 @@ const RESPONSE_JSON_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['language', 'headline', 'primaryText', 'cta'],
+        required: ['language', 'hook', 'headline', 'primaryText', 'cta', 'hashtags'],
         properties: {
           language: { type: 'string', enum: ['TAMIL', 'ENGLISH', 'TANGLISH'] },
+          hook: { type: 'string' },
           headline: { type: 'string' },
           primaryText: { type: 'string' },
           cta: { type: 'string' },
+          hashtags: { type: 'array', items: { type: 'string' } },
         },
       },
     },
   },
 } as const;
+
+export interface ProductImage {
+  base64: string;
+  mimeType: string;
+}
 
 export interface AdBrief {
   businessName: string;
@@ -101,6 +120,8 @@ export interface AdBrief {
   city?: string;
   language: 'TAMIL' | 'ENGLISH' | 'TANGLISH';
   dailyBudgetInr: number;
+  /** Looked at, not just stored. See buildPrompt. */
+  image?: ProductImage;
 }
 
 function buildPrompt(brief: AdBrief): string {
@@ -112,6 +133,19 @@ function buildPrompt(brief: AdBrief): string {
     'Location: ' + (brief.city ?? 'not specified'),
     'Daily budget: INR ' + brief.dailyBudgetInr,
     'Owner describes the business as: ' + brief.description,
+    '',
+    ...(brief.image
+      ? [
+          '',
+          'A photo of what is being advertised is attached. Look at it and',
+          'write about what you can actually see -- the specific item, its',
+          'colour, material, how it is presented. Copy that names the thing',
+          'in the picture reads as a real shop talking about real stock;',
+          'copy that could describe any shop reads as an advert and gets',
+          'scrolled past.',
+          'Do not describe anything you cannot see, and do not guess a price.',
+        ]
+      : []),
     '',
     'Produce:',
     '1. A target audience. Be specific and realistic for a LOCAL business:',
@@ -132,6 +166,18 @@ function buildPrompt(brief: AdBrief): string {
     '  liability, not ours.',
     '- Tamil copy must be real Tamil script, not transliteration.',
     '- Headlines under 60 characters so they are not truncated in feed.',
+    '',
+    'The hook is the first line someone reads while scrolling, and it has',
+    'about two seconds to earn the next two. What actually works for a local',
+    'shop is specifics, not adjectives: name the thing, the place, the day.',
+    '"Ivvalavu fresh-a Thuckalay-la vera enga kidaikkum?" stops a thumb;',
+    '"Best quality products at affordable prices" does not. No clickbait that',
+    'the rest of the post does not deliver -- these are the shop owner\'s own',
+    'neighbours, and they will notice.',
+    '',
+    'Hashtags: 5-8, without the #. Mix the specific and the local -- the town',
+    'name, the category, the language. Thirty generic tags reach nobody; a',
+    'few that a nearby person would actually search do.',
   ].join('\n');
 }
 
@@ -196,7 +242,14 @@ export async function generateAdPlan(brief: AdBrief): Promise<AdPlan> {
     try {
       const response = await ai.models.generateContent({
         model,
-        contents: prompt,
+        // The photo is part of the request, not metadata about it: the model
+        // is asked to describe what it can see, so it has to be able to see.
+        contents: brief.image
+          ? createUserContent([
+              prompt,
+              createPartFromBase64(brief.image.base64, brief.image.mimeType),
+            ])
+          : prompt,
         config: {
           responseMimeType: 'application/json',
           responseJsonSchema: RESPONSE_JSON_SCHEMA,

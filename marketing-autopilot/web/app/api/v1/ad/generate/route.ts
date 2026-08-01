@@ -79,12 +79,13 @@ export async function POST(request: Request) {
     );
   }
 
-  // The image is accepted and validated but not sent to the model: the plan
-  // is built from the description. It is checked here anyway so a bad upload
-  // fails now, at the point the user can still fix it, rather than later in
-  // the poster step.
+  // The photo is sent to the model, not just stored: copy that names what is
+  // actually in the picture reads as a real shop talking about real stock,
+  // where copy that could describe any shop gets scrolled past.
   const image = form.get('image');
   const hasImage = image instanceof File && image.size > 0;
+  let productImage: { base64: string; mimeType: string } | undefined;
+
   if (hasImage) {
     if (!image.type.startsWith('image/')) {
       return NextResponse.json(
@@ -98,10 +99,14 @@ export async function POST(request: Request) {
         { status: 413 },
       );
     }
+    productImage = {
+      base64: Buffer.from(await image.arrayBuffer()).toString('base64'),
+      mimeType: image.type,
+    };
   }
 
   try {
-    const plan = await generateAdPlan(input);
+    const plan = await generateAdPlan({ ...input, image: productImage });
 
     return NextResponse.json({
       plan,
