@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   let credentials;
   try {
-    credentials = getMetaCredentials();
+    credentials = await getMetaCredentials();
   } catch (err) {
     if (err instanceof MetaConfigError) return fail(err.message, 503);
     throw err;
@@ -117,10 +117,14 @@ export async function POST(request: Request) {
     // place the app needs an object store.
     const imageUrl = await hostImage(bytes, mimeType);
 
-    const igUserId = await resolveInstagramUserId(
-      credentials.accessToken,
-      credentials.pageId,
-    );
+    // A connection made through the Connect button already carries this, so
+    // the lookup only runs for the environment-variable setup.
+    const igUserId =
+      credentials.instagramUserId ??
+      (await resolveInstagramUserId(
+        credentials.accessToken,
+        credentials.pageId,
+      ));
 
     const caption = buildCaption(
       parsed.data.headline,

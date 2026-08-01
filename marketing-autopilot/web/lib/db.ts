@@ -90,6 +90,25 @@ export async function ensureSchema(): Promise<void> {
   /// calendar existed, which is why every read coalesces it to created_at.
   await q`ALTER TABLE daily_post ADD COLUMN IF NOT EXISTS scheduled_for DATE`;
 
+  // One row, like shop_profile, for the same reason and with the same
+  // constraint forcing the multi-tenant change to be noticed.
+  await q`
+    CREATE TABLE IF NOT EXISTS meta_connection (
+      id                 INT PRIMARY KEY DEFAULT 1,
+      page_id            TEXT NOT NULL,
+      page_name          TEXT,
+      -- AES-256-GCM ciphertext, never the raw token. A Page access token
+      -- derived from a long-lived user token does not expire, which is why
+      -- there is no refresh column: there is nothing to refresh.
+      page_token_enc     TEXT NOT NULL,
+      instagram_user_id  TEXT,
+      ad_account_id      TEXT,
+      ad_account_name    TEXT,
+      connected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT meta_connection_single_row CHECK (id = 1)
+    )
+  `;
+
   // The queue is read as "the newest pending one" on every load, and the
   // cron checks "did we already make one today" before generating.
   await q`
@@ -240,4 +259,56 @@ export async function markSkipped(id: string): Promise<void> {
   await sql()`
     UPDATE daily_post SET status = 'SKIPPED' WHERE id = ${id}
   `;
+}
+
+
+/* ---------------- Meta connection ---------------- */
+
+export interface MetaConnectionRow {
+  page_id: string;
+  page_name: string | null;
+  page_token_enc: string;
+  instagram_user_id: string | null;
+  ad_account_id: string | null;
+  ad_account_name: string | null;
+  connected_at: string;
+}
+
+export async function getConnection(): Promise<MetaConnectionRow | null> {
+  const rows = (await sql()`
+    SELECT page_id, page_name, page_token_enc, instagram_user_id,
+           ad_account_id, ad_account_name, connected_at
+    FROM meta_connection WHERE id = 1
+  `) as MetaConnectionRow[];
+  return rows[0] ?? null;
+}
+
+export async function saveConnection(c: {
+  pageId: string;
+  pageName: string | null;
+  pageTokenEnc: string;
+  instagramUserId: string | null;
+  adAccountId: string | null;
+  adAccountName: string | null;
+}): Promise<void> {
+  await sql()`
+    INSERT INTO meta_connection
+      (id, page_id, page_name, page_token_enc, instagram_user_id,
+       ad_account_id, ad_account_name, connected_at)
+    VALUES
+      (1, ${c.pageId}, ${c.pageName}, ${c.pageTokenEnc}, ${c.instagramUserId},
+       ${c.adAccountId}, ${c.adAccountName}, now())
+    ON CONFLICT (id) DO UPDATE SET
+      page_id           = EXCLUDED.page_id,
+      page_name         = EXCLUDED.page_name,
+      page_token_enc    = EXCLUDED.page_token_enc,
+      instagram_user_id = EXCLUDED.instagram_user_id,
+      ad_account_id     = EXCLUDED.ad_account_id,
+      ad_account_name   = EXCLUDED.ad_account_name,
+      connected_at      = now()
+  `;
+}
+
+export async function deleteConnection(): Promise<void> {
+  await sql()`DELETE FROM meta_connection WHERE id = 1`;
 }

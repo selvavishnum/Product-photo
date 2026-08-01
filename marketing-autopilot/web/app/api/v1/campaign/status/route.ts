@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   let credentials;
   try {
-    credentials = getMetaCredentials();
+    credentials = await getMetaCredentials();
   } catch (err) {
     if (err instanceof MetaConfigError) {
       return NextResponse.json({ error: { message: err.message } }, { status: 503 });

@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 
   let credentials;
   try {
-    credentials = getMetaCredentials();
+    credentials = await getMetaCredentials();
   } catch (err) {
     if (err instanceof MetaConfigError) return fail(err.message, 503);
     throw err;
