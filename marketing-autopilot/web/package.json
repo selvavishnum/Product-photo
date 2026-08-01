@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.15.0",
+    "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "^2.6.1",
     "facebook-nodejs-business-sdk": "^24.0.1",
     "next": "^16.2.12",
