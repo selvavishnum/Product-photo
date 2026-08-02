@@ -166,11 +166,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const credentials = getMetaCredentials();
-    const igUserId = await resolveInstagramUserId(
-      credentials.accessToken,
-      credentials.pageId,
-    );
+    const credentials = await getMetaCredentials();
+    // A connection made through the Connect button already carries this, so
+    // the lookup only runs for the environment-variable setup.
+    const igUserId =
+      credentials.instagramUserId ??
+      (await resolveInstagramUserId(
+        credentials.accessToken,
+        credentials.pageId,
+      ));
     const result = await publishInstagramPhoto({
       accessToken: credentials.accessToken,
       igUserId,

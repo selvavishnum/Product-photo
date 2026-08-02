@@ -13,6 +13,10 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.1
+  # MediaType, for declaring an upload's real content type. http depends on
+  # this already; naming it here makes the import legitimate rather than a
+  # transitive one that a future http release could drop.
+  http_parser: ^4.1.0
   image_picker: ^1.1.2
   # Full photo editor (crop/rotate, filters, tune/adjust, blur, paint, text,
   # stickers). Version + API verified against the real package source
