@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import ShareButton from '../share-button';
 import PosterMaker from './poster-maker';
+import StudioShot from './studio-shot';
 import {
   Choice,
   Continue,
@@ -99,6 +100,11 @@ export default function CreatePage() {
   const [language, setLanguage] = useState('TAMIL');
   const [budget, setBudget] = useState(0);
   const [image, setImage] = useState<File | null>(null);
+
+  /// The photo as uploaded, kept alongside `image` so a generated background
+  /// can be undone. `image` is what everything downstream uses; this is only
+  /// ever the file the owner picked.
+  const [original, setOriginal] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -317,6 +323,16 @@ export default function CreatePage() {
             </span>
           </article>
         ))}
+
+        {/* Before the poster, because the poster draws whatever this leaves
+            behind: choosing a background afterwards would mean redrawing. */}
+        <StudioShot
+          image={image}
+          original={original}
+          passcode={passcode}
+          onPasscode={setPasscode}
+          onImage={setImage}
+        />
 
         <PosterMaker
           headline={preferred.hook || preferred.headline}
@@ -617,7 +633,11 @@ export default function CreatePage() {
               className={inputClass}
               type="file"
               accept="image/*"
-              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const picked = e.target.files?.[0] ?? null;
+                setImage(picked);
+                setOriginal(picked);
+              }}
             />
             <p className="mt-1.5 text-xs text-faint">
               {image
