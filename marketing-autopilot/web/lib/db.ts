@@ -18,9 +18,14 @@ import { neon } from '@neondatabase/serverless';
 
 export class DbNotConfigured extends Error {
   constructor() {
+    // Worded for whoever hit it. This was "Scheduled posting needs a
+    // database", which is where it first came up -- but the connect page
+    // shows the same error, and telling someone trying to link Instagram
+    // about scheduled posting reads as a different problem entirely.
     super(
-      'Scheduled posting needs a database. Create a Postgres store in Vercel ' +
-        '(Storage -> Postgres) and redeploy; it sets DATABASE_URL automatically.',
+      'This needs a database. Create a Postgres store in Vercel ' +
+        '(Storage -> Postgres), connect it to this project and redeploy; it ' +
+        'sets DATABASE_URL automatically.',
     );
     this.name = 'DbNotConfigured';
   }

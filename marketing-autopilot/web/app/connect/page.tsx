@@ -27,6 +27,8 @@ interface Status {
   hasInstagram: boolean;
   adAccountName: string | null;
   hasAdAccount: boolean;
+  /** No Postgres store yet, so a connection has nowhere to be saved. */
+  needsDatabase: boolean;
   envFallback: boolean;
 }
 
@@ -171,6 +173,18 @@ function ConnectInner() {
         </p>
       )}
 
+      {status?.needsDatabase && (
+        <div className="mt-6 rounded-3xl bg-warn-soft p-5 text-sm text-warn">
+          <p className="font-bold">One step left: add a database</p>
+          <p className="mt-2">
+            Signing in works, but the connection has nowhere to be saved yet.
+            In Vercel open <span className="font-semibold">Storage</span>, create
+            a <span className="font-semibold">Postgres</span> store, connect it
+            to this project, then redeploy. It sets DATABASE_URL on its own.
+          </p>
+        </div>
+      )}
+
       <section className="mt-6 rounded-3xl border border-line p-5">
         {status?.connected ? (
           <>
@@ -201,7 +215,10 @@ function ConnectInner() {
             <button
               type="button"
               onClick={connect}
-              disabled={busy}
+              // Stopped here rather than at the end: without a database the
+              // sign-in would go all the way through Meta's dialog and fail
+              // on the way back, after the owner had already approved.
+              disabled={busy || status?.needsDatabase}
               className="mt-5 w-full rounded-full bg-ink px-6 py-4 text-base font-semibold text-white disabled:opacity-25"
             >
               {busy ? 'Opening…' : 'Connect Instagram'}
