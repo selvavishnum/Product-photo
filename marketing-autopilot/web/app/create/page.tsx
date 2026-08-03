@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import ShareButton from '../share-button';
+import CarouselMaker from './carousel-maker';
 import PosterMaker from './poster-maker';
 import StudioShot from './studio-shot';
 import {
@@ -329,9 +330,21 @@ export default function CreatePage() {
         <StudioShot
           image={image}
           original={original}
+          headline={preferred.hook || preferred.headline}
+          cta={preferred.cta}
           passcode={passcode}
           onPasscode={setPasscode}
           onImage={setImage}
+        />
+
+        <CarouselMaker
+          image={original}
+          headline={preferred.hook || preferred.headline}
+          cta={preferred.cta}
+          primaryText={preferred.primaryText}
+          hashtags={preferred.hashtags}
+          passcode={passcode}
+          onPasscode={setPasscode}
         />
 
         <PosterMaker

@@ -19,6 +19,8 @@ import { inputClass } from './step-shell';
 export default function StudioShot({
   image,
   original,
+  headline,
+  cta,
   passcode,
   onPasscode,
   onImage,
@@ -27,11 +29,14 @@ export default function StudioShot({
   image: File | null;
   /** The photo the owner actually uploaded, kept so Undo has something to go back to. */
   original: File | null;
+  headline: string;
+  cta: string;
   passcode: string;
   onPasscode: (value: string) => void;
   onImage: (image: File) => void;
 }) {
   const [scene, setScene] = useState<string | null>(null);
+  const [withText, setWithText] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +65,10 @@ export default function StudioShot({
       form.set('image', original);
       form.set('scene', key);
       if (note.trim()) form.set('note', note.trim());
+      if (withText) {
+        form.set('headline', headline);
+        if (cta) form.set('cta', cta);
+      }
 
       const res = await fetch('/api/v1/product-shot', {
         method: 'POST',
@@ -120,6 +129,22 @@ export default function StudioShot({
         placeholder="What is it? e.g. brass lamp (optional)"
         maxLength={200}
       />
+
+      <label className="mt-3 flex items-start gap-3 rounded-2xl border border-line px-4 py-3 text-sm">
+        <input
+          type="checkbox"
+          checked={withText}
+          onChange={(e) => setWithText(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0"
+        />
+        <span>
+          Let the AI write the headline onto the image
+          <span className="mt-0.5 block text-xs text-muted">
+            Off: the app draws it, and the Tamil is always right. On: the model
+            designs the whole ad — read the Tamil before you post it.
+          </span>
+        </span>
+      </label>
 
       <input
         className={`${inputClass} mt-3`}

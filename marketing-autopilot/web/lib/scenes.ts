@@ -64,3 +64,52 @@ export type SceneKey = (typeof SCENES)[number]['key'];
 export function findScene(key: string) {
   return SCENES.find((s) => s.key === key) ?? SCENES[0];
 }
+
+/**
+ * The four slides of a carousel, in the order they are swiped.
+ *
+ * Not four variations of the same picture. A carousel earns its extra reach
+ * from people swiping, and they swipe when each slide answers a question the
+ * one before it raised: what is it, what does it look like close up, what is
+ * it like to own, what do I do now.
+ */
+export const SLIDES = [
+  {
+    key: 'hero',
+    name: 'Hero',
+    tamil: 'முதல் படம்',
+    prompt:
+      'a straight-on hero shot of the whole product, centred, filling most ' +
+      'of the frame',
+  },
+  {
+    key: 'detail',
+    name: 'Close-up',
+    tamil: 'நெருக்கம்',
+    prompt:
+      'a tight close-up of the most interesting part of the product -- the ' +
+      'texture, the finish, the craftsmanship -- shallow depth of field',
+  },
+  {
+    key: 'lifestyle',
+    name: 'In use',
+    tamil: 'பயன்பாடு',
+    prompt:
+      'the product placed where it would actually be used in an Indian home ' +
+      'or shop, still the clear subject, the setting softly out of focus',
+  },
+  {
+    key: 'offer',
+    name: 'Offer',
+    tamil: 'சலுகை',
+    prompt:
+      'the product to one side with generous empty space on the other, ' +
+      'ready for the offer to be read against it',
+  },
+] as const;
+
+export type SlideKey = (typeof SLIDES)[number]['key'];
+
+export function findSlide(key: string | undefined) {
+  return SLIDES.find((s) => s.key === key);
+}

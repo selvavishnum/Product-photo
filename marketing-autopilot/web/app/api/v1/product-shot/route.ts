@@ -58,6 +58,9 @@ export async function POST(request: Request) {
 
   const scene = form.get('scene');
   const note = form.get('note');
+  const slide = form.get('slide');
+  const headline = form.get('headline');
+  const cta = form.get('cta');
 
   try {
     const shot = await generateProductShot({
@@ -69,6 +72,19 @@ export async function POST(request: Request) {
       note:
         typeof note === 'string' && note.trim()
           ? note.trim().slice(0, 200)
+          : undefined,
+      slide: typeof slide === 'string' && slide ? slide : undefined,
+      // Only when there is a headline. A cta on its own would produce an
+      // image with a button and nothing to press it about.
+      text:
+        typeof headline === 'string' && headline.trim()
+          ? {
+              headline: headline.trim().slice(0, 120),
+              cta:
+                typeof cta === 'string' && cta.trim()
+                  ? cta.trim().slice(0, 40)
+                  : undefined,
+            }
           : undefined,
     });
 

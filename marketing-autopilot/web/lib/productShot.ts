@@ -1,19 +1,21 @@
 import { GoogleGenAI, createPartFromBase64, createUserContent } from '@google/genai';
 
-import { type SceneKey, findScene } from './scenes';
+import { type SceneKey, findScene, findSlide } from './scenes';
 
 /**
  * Turns a shop owner's phone snapshot into a studio product shot.
  *
- * Nano Banana (Gemini's image models) is used for the *picture only*. The
- * Tamil headline is still drawn on the canvas afterwards, and that split is
- * deliberate rather than a limitation we have not got round to fixing:
- * generated Tamil comes back with reordered vowel signs and broken ligatures
- * often enough that no amount of prompting makes it safe to put in front of a
- * customer. A wrong headline on a poster is worse than a plain background.
+ * Two modes, and the difference is who writes the words.
  *
- * So the model is asked for a background and lighting, and told in as many
- * words to render no text at all.
+ * By default the model repaints the scene and is told to render no text at
+ * all; the headline goes on afterwards through the canvas, which is the only
+ * way to be certain Tamil is shaped correctly.
+ *
+ * With `text`, the model lays out the whole advertisement itself. That is what
+ * makes a carousel look designed instead of captioned, and on Latin script it
+ * is plainly better. On Tamil it is a gamble -- generated vowel signs land in
+ * the wrong order often enough to matter -- so the mode is offered rather than
+ * assumed, and the caller is told to read the result before it goes out.
  */
 
 export class ProductShotError extends Error {
@@ -52,12 +54,56 @@ function isModelUnavailable(err: unknown): boolean {
   );
 }
 
-function buildPrompt(scene: { prompt: string }, note: string | undefined) {
+/**
+ * The words to render into the image, when the model is doing the lettering.
+ *
+ * Optional. With it absent the model is told to render nothing at all and the
+ * headline is drawn on the canvas afterwards, which is the only way to be
+ * certain Tamil comes out right. With it present the model lays out the whole
+ * ad -- which is what makes a carousel look designed rather than captioned,
+ * and is worth the risk on scripts the model handles well.
+ */
+export interface ShotText {
+  headline: string;
+  cta?: string;
+}
+
+function textRules(text: ShotText): string[] {
+  return [
+    'Compose this as a finished social media advertisement with the ' +
+      'lettering set into the image.',
+    '',
+    'Render exactly this headline, character for character, changing ' +
+      'nothing and translating nothing:',
+    text.headline,
+    text.cta ? `And this call to action, the same way: ${text.cta}` : '',
+    '',
+    'Typography rules:',
+    '- Copy the characters exactly as given. Do not correct the spelling, ' +
+      'do not reorder any mark, do not substitute a similar-looking letter. ' +
+      'If a character cannot be drawn faithfully, leave the whole headline ' +
+      'out rather than approximating it.',
+    '- Set it large and clearly legible on a phone, in a clean modern ' +
+      'sans-serif, with strong contrast against whatever sits behind it.',
+    '- Keep it clear of the product and inside the safe area, well away ' +
+      'from all four edges.',
+    '- No other words anywhere. No price, no phone number, no website, no ' +
+      'logo, no watermark, no invented shop name.',
+  ].filter(Boolean);
+}
+
+function buildPrompt(
+  scene: { prompt: string },
+  note: string | undefined,
+  slide: { prompt: string } | undefined,
+  text: ShotText | undefined,
+) {
   return [
     'Re-photograph the product in this image as a professional commercial ' +
       'product photograph.',
     '',
     `Setting: ${scene.prompt}.`,
+    slide ? `Framing: ${slide.prompt}.` : '',
     note ? `The product is: ${note}.` : '',
     '',
     'Rules, in order of importance:',
@@ -65,13 +111,18 @@ function buildPrompt(scene: { prompt: string }, note: string | undefined) {
       'proportions, same label and same wording printed on it. Do not ' +
       'restyle it, do not clean up its dents or wear, do not swap it for a ' +
       'similar product. A customer must recognise it on the shelf.',
-    '2. Render no text anywhere in the image. No captions, no price, no ' +
-      'logo, no watermark, no signage in the background. Text is added ' +
-      'afterwards by hand.',
+    text
+      ? '2. Render only the words given below, and nothing else in writing.'
+      : '2. Render no text anywhere in the image. No captions, no price, no ' +
+        'logo, no watermark, no signage in the background. Text is added ' +
+        'afterwards by hand.',
     '3. Replace only the background, the surface and the lighting.',
-    '4. Centre the product with a little breathing room on all four sides, ' +
-      'and keep it fully inside the frame.',
+    slide
+      ? '4. Keep the product fully inside the frame.'
+      : '4. Centre the product with a little breathing room on all four ' +
+        'sides, and keep it fully inside the frame.',
     '5. No people, no hands, no other products.',
+    ...(text ? ['', ...textRules(text)] : []),
   ]
     .filter(Boolean)
     .join('\n');
@@ -95,6 +146,10 @@ export async function generateProductShot(params: {
   mimeType: string;
   scene: SceneKey | string;
   note?: string;
+  /** Which carousel slide this is, if any. Absent for a single image. */
+  slide?: string;
+  /** Present when the model, not the canvas, is doing the lettering. */
+  text?: ShotText;
 }): Promise<GeneratedShot> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -108,7 +163,12 @@ export async function generateProductShot(params: {
     : FALLBACK_MODELS;
 
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = buildPrompt(findScene(params.scene), params.note);
+  const prompt = buildPrompt(
+    findScene(params.scene),
+    params.note,
+    findSlide(params.slide),
+    params.text,
+  );
 
   let lastError: unknown;
 
