@@ -21,6 +21,10 @@ export async function GET(request: Request) {
     );
   }
 
+  // The environment-variable route is still valid; the page says so rather
+  // than claiming nothing is set up.
+  const envFallback = Boolean(process.env.META_ACCESS_TOKEN);
+
   try {
     await ensureSchema();
     const c = await getConnection();
@@ -31,16 +35,26 @@ export async function GET(request: Request) {
       adAccountName: c?.ad_account_name ?? null,
       hasAdAccount: Boolean(c?.ad_account_id),
       connectedAt: c?.connected_at ?? null,
-      // The environment-variable route is still valid; the page says so
-      // rather than claiming nothing is set up.
-      envFallback: Boolean(process.env.META_ACCESS_TOKEN),
+      needsDatabase: false,
+      envFallback,
     });
   } catch (err) {
     if (err instanceof DbNotConfigured) {
-      return NextResponse.json(
-        { error: { message: err.message } },
-        { status: 503 },
-      );
+      // Answered, not refused. A missing database is a setup step, not a
+      // rejected passcode -- and returning 503 here left the connect page
+      // stuck behind its passcode box showing a database error, which looks
+      // exactly like the passcode was wrong. 200 lets the page open and say
+      // which step is left.
+      return NextResponse.json({
+        connected: false,
+        pageName: null,
+        hasInstagram: false,
+        adAccountName: null,
+        hasAdAccount: false,
+        connectedAt: null,
+        needsDatabase: true,
+        envFallback,
+      });
     }
     throw err;
   }

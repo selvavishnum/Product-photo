@@ -171,3 +171,82 @@ export function buildCaption(
     ? `${caption.slice(0, CAPTION_LIMIT - 1)}…`
     : caption;
 }
+
+/**
+ * Publishes a carousel -- two to ten images in one swipeable post.
+ *
+ * Three rounds of calls, not two. Each image gets its own container marked
+ * `is_carousel_item`, those ids become the `children` of a `CAROUSEL`
+ * container, and only that is published. The caption belongs to the carousel
+ * container; a caption on a child is silently dropped.
+ *
+ * The children are created one after another rather than all at once. Meta
+ * rate-limits container creation per account, and a burst of ten is the shape
+ * that trips it -- at which point some children exist, some do not, and the
+ * post cannot be assembled from what came back.
+ */
+export async function publishInstagramCarousel(params: {
+  accessToken: string;
+  igUserId: string;
+  imageUrls: string[];
+  caption: string;
+}): Promise<{ postId: string; permalink?: string }> {
+  if (params.imageUrls.length < 2 || params.imageUrls.length > 10) {
+    throw new InstagramError(
+      'A carousel needs between 2 and 10 images.',
+      'create_children',
+    );
+  }
+
+  const childIds: string[] = [];
+  for (const imageUrl of params.imageUrls) {
+    const create = new URL(`${GRAPH}/${params.igUserId}/media`);
+    create.searchParams.set('image_url', imageUrl);
+    create.searchParams.set('is_carousel_item', 'true');
+    create.searchParams.set('access_token', params.accessToken);
+
+    const child = await graph<{ id: string }>(
+      create.toString(),
+      { method: 'POST' },
+      'create_child',
+    );
+    childIds.push(child.id);
+  }
+
+  const parent = new URL(`${GRAPH}/${params.igUserId}/media`);
+  parent.searchParams.set('media_type', 'CAROUSEL');
+  parent.searchParams.set('children', childIds.join(','));
+  parent.searchParams.set('caption', params.caption);
+  parent.searchParams.set('access_token', params.accessToken);
+
+  const container = await graph<{ id: string }>(
+    parent.toString(),
+    { method: 'POST' },
+    'create_carousel',
+  );
+
+  const publish = new URL(`${GRAPH}/${params.igUserId}/media_publish`);
+  publish.searchParams.set('creation_id', container.id);
+  publish.searchParams.set('access_token', params.accessToken);
+
+  const post = await graph<{ id: string }>(
+    publish.toString(),
+    { method: 'POST' },
+    'publish',
+  );
+
+  // Best effort, as with a single photo: the carousel is already live.
+  let permalink: string | undefined;
+  try {
+    const detail = await graph<{ permalink?: string }>(
+      `${GRAPH}/${post.id}?fields=permalink&access_token=${encodeURIComponent(params.accessToken)}`,
+      { method: 'GET' },
+      'read_permalink',
+    );
+    permalink = detail.permalink;
+  } catch {
+    // Ignored on purpose.
+  }
+
+  return { postId: post.id, permalink };
+}
